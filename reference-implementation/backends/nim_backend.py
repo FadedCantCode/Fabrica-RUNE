@@ -15,15 +15,20 @@ models, not necessarily byte-identical to calling each lab's own API
 directly. Treat it as a good stand-in for cross-provider comparison, not
 a perfect substitute for it.
 
-Default model is meta/llama-3.1-70b-instruct. Override via the `model`
-constructor arg to point at any other model ID from the catalog at
-build.nvidia.com/models (e.g. "deepseek-ai/deepseek-v3" or
-"moonshotai/kimi-k2-instruct" — check the catalog for current IDs, since
-NVIDIA's model lineup changes and free models can be deprecated with
-short notice).
+Default model is meta/llama-3.1-8b-instruct (the smaller, faster variant —
+the 70B model has documented periods of slow or hanging responses under
+load on NIM's free tier as of 2026; switch up to 70b-instruct via the
+`model` constructor arg once basic connectivity is confirmed working).
+Override via the `model` constructor arg to point at any other model ID
+from the catalog at build.nvidia.com/models (e.g. "deepseek-ai/deepseek-v3"
+or "moonshotai/kimi-k2-instruct" — check the catalog for current IDs,
+since NVIDIA's model lineup changes and free models can be deprecated
+with short notice).
 
 Includes the same retry-with-backoff as the other free-tier backends for
-transient server errors (429, 500, 503).
+transient server errors (429, 500, 503), plus an explicit retry path for
+connection-level read timeouts, since those don't carry an HTTP status
+code and would otherwise crash immediately instead of retrying.
 """
 import os
 import time
@@ -38,7 +43,7 @@ BASE_BACKOFF_SECONDS = 2.0
 class NIMBackend(Backend):
     name = "nim"
 
-    def __init__(self, model: str = "meta/llama-3.1-70b-instruct"):
+    def __init__(self, model: str = "meta/llama-3.1-8b-instruct"):
         self.model = model
         self.api_key = os.environ.get("NVIDIA_API_KEY")
         if not self.api_key:
@@ -59,15 +64,35 @@ class NIMBackend(Backend):
 
         last_error = None
         for attempt in range(MAX_RETRIES + 1):
-            resp = requests.post(
-                "https://integrate.api.nvidia.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=60,
-            )
+            try:
+                resp = requests.post(
+                    "https://integrate.api.nvidia.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=120,
+                )
+            except requests.exceptions.Timeout as e:
+                # NIM has documented periods of slow/hanging responses,
+                # especially on larger models under load. A read timeout
+                # isn't an HTTP status code, so it needs its own retry path
+                # rather than falling through the status-code check below.
+                if attempt < MAX_RETRIES:
+                    wait = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    print(
+                        f"[nim_backend] read timeout on attempt {attempt + 1}, "
+                        f"retrying in {wait:.0f}s..."
+                    )
+                    time.sleep(wait)
+                    last_error = e
+                    continue
+                raise RuntimeError(
+                    f"NIM request timed out after {MAX_RETRIES + 1} attempts "
+                    f"(120s each). The model may be under heavy load right now; "
+                    f"try again later or switch to a smaller model."
+                ) from e
 
             if resp.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
                 wait = BASE_BACKOFF_SECONDS * (2 ** attempt)
