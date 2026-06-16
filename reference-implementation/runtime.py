@@ -50,8 +50,8 @@ BACKEND_CALL_DELAYS = {
     "groq_large": 2.0,
     "openrouter": 3.0,
     "deepseek": 1.0,
-    "nim": 1.5,
-    "nim_deepseek": 1.5,
+    "nim": 2.0,
+    "nim_deepseek": 2.0,
     "openai": 1.0,
     "anthropic": 1.0,
     "ollama": 0.0,  # local, no rate limit
