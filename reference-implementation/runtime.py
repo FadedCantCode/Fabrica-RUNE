@@ -22,6 +22,7 @@ from backends.gemini_backend import GeminiBackend
 from backends.groq_backend import GroqBackend, GroqLargeBackend
 from backends.openrouter_backend import OpenRouterBackend
 from backends.deepseek_backend import DeepSeekBackend
+from backends.nim_backend import NIMBackend, NIMDeepSeekBackend
 
 load_dotenv()
 
@@ -34,6 +35,8 @@ BACKEND_REGISTRY = {
     "groq_large": GroqLargeBackend,
     "openrouter": OpenRouterBackend,
     "deepseek": DeepSeekBackend,
+    "nim": NIMBackend,
+    "nim_deepseek": NIMDeepSeekBackend,
 }
 
 # Free-tier rate limits vary a lot per provider. Gemini Flash's free tier
@@ -47,6 +50,8 @@ BACKEND_CALL_DELAYS = {
     "groq_large": 2.0,
     "openrouter": 3.0,
     "deepseek": 1.0,
+    "nim": 1.5,
+    "nim_deepseek": 1.5,
     "openai": 1.0,
     "anthropic": 1.0,
     "ollama": 0.0,  # local, no rate limit
