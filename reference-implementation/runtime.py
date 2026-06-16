@@ -100,3 +100,50 @@ def run_agent(rune, backend, task: str, call_delay: float = 2.0) -> dict:
         "species": rune.species,
         "backend": backend.name,
         "task": task,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "genome": rune.genome,
+        "transcript": transcript,
+        "final_answer": transcript[-1]["output"] if transcript else "",
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run a .rune agent against a model backend.")
+    parser.add_argument("rune_path", help="Path to a .rune file")
+    parser.add_argument("--task", required=True, help="The task for the agent to perform")
+    parser.add_argument("--backend", required=True, choices=BACKEND_REGISTRY.keys())
+    parser.add_argument("--model", default=None, help="Override the default model for the chosen backend")
+    parser.add_argument("--json", action="store_true", help="Print raw JSON result instead of formatted transcript")
+    args = parser.parse_args()
+
+    try:
+        rune = load_rune(args.rune_path)
+    except RuneValidationError as e:
+        print(f"❌ Invalid .rune file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    backend_cls = BACKEND_REGISTRY[args.backend]
+    backend = backend_cls(model=args.model) if args.model else backend_cls()
+
+    try:
+        result = run_agent(rune, backend, args.task)
+    except Exception as e:
+        print(f"❌ Run failed on backend '{args.backend}': {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"=== {result['species']} agent on {result['backend']} ===")
+        print(f"Task: {result['task']}")
+        print(f"Genome: {' -> '.join(result['genome'])}\n")
+        for entry in result["transcript"]:
+            print(f"--- {entry['step'].upper()} ---")
+            print(entry["output"])
+            print()
+        print("=== FINAL ANSWER ===")
+        print(result["final_answer"])
+
+
+if __name__ == "__main__":
+    main()
