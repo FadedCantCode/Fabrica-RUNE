@@ -20,6 +20,7 @@ from backends.anthropic_backend import AnthropicBackend
 from backends.ollama_backend import OllamaBackend
 from backends.gemini_backend import GeminiBackend
 from backends.groq_backend import GroqBackend
+from backends.openrouter_backend import OpenRouterBackend
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ BACKEND_REGISTRY = {
     "ollama": OllamaBackend,
     "gemini": GeminiBackend,
     "groq": GroqBackend,
+    "openrouter": OpenRouterBackend,
 }
 
 # Free-tier rate limits vary a lot per provider. Gemini Flash's free tier
@@ -39,6 +41,7 @@ BACKEND_REGISTRY = {
 BACKEND_CALL_DELAYS = {
     "gemini": 7.0,
     "groq": 2.0,
+    "openrouter": 3.0,
     "openai": 1.0,
     "anthropic": 1.0,
     "ollama": 0.0,  # local, no rate limit
