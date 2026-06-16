@@ -118,11 +118,13 @@ class NIMDeepSeekBackend(NIMBackend):
     cross-family comparison within one NIM account when separate
     per-provider accounts are quota-blocked elsewhere.
 
-    Model ID should be confirmed against the current catalog at
-    build.nvidia.com/models before relying on it; NVIDIA's listings
-    change and this string may need updating.
+    Model ID is deepseek-v4-flash, the current fast/cheap tier (NIM's
+    older deepseek-v3.2 listing is marked Deprecated as of 2026, and a
+    bare "deepseek-v3" ID does not exist in the catalog — confirm
+    against build.nvidia.com/models before relying on this long-term,
+    since NVIDIA's listings change).
     """
     name = "nim_deepseek"
 
-    def __init__(self, model: str = "deepseek-ai/deepseek-v3"):
+    def __init__(self, model: str = "deepseek-ai/deepseek-v4-flash"):
         super().__init__(model=model)
