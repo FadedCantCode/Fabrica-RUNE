@@ -15,6 +15,11 @@ one to be working and measured before starting the next.
 
 ## Stage 1 — Needed before claiming the linter works
 
+- [x] Run `validate_linter.py` across 12 distinct tasks on the `research` genome
+      (2026-06-16, `groq` vs `groq_large` — see caveat below)
+- [ ] Run the same 12-task set on a genuine cross-provider pairing (e.g. `groq` vs
+      `gemini`) — the result below is **not** this, and should not be cited as
+      cross-provider validation
 - [ ] Run `validate_linter.py` across at least 10 distinct tasks and both example genomes
 - [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
       history. If correlation is weak or negative, say so and revise the heuristic weights
@@ -23,6 +28,22 @@ one to be working and measured before starting the next.
       similarity, since two backends can say the same thing in different words and get
       penalized as "divergent" under pure word-overlap scoring.
 - [ ] Test across at least 3 distinct genome shapes (current: research, coder)
+
+### Recorded result: 2026-06-16, `groq` vs `groq_large`, `research.rune`, 12 tasks
+
+Correlation between predicted risk and measured divergence: **0.719** (positive signal
+per `validate_linter.py`'s own interpretation threshold of ≥0.5).
+
+**Caveat, important:** `groq` and `groq_large` are the same provider (Groq), differing
+only in model size (8B vs 70B). This is a same-provider, different-model-size comparison,
+*not* the cross-provider comparison this project is actually trying to validate. It was
+run as a temporary substitute on a day when Gemini, OpenRouter, and DeepSeek's free tiers
+were all blocked (quota exhaustion / zero account balance). Treat this 0.719 as a weaker,
+narrower data point — evidence the linter has *some* predictive signal, not evidence it
+predicts cross-provider divergence specifically. Measured divergence across all three
+genome steps was unusually tight (0.74–0.80), which may mean model-size difference alone
+dominates the signal regardless of step structure — a real cross-provider run is needed to
+tell whether that holds, or whether it's an artifact of this particular pairing.
 
 ## Stage 2 — Spec maturity
 
