@@ -71,3 +71,22 @@ class GroqBackend(Backend):
             return data["choices"][0]["message"]["content"].strip()
 
         last_error.raise_for_status()
+
+
+class GroqLargeBackend(GroqBackend):
+    """
+    Same Groq adapter, pointed at a larger model (70B vs the default 8B).
+
+    Use case: when no second *provider* is available (e.g. other free
+    tiers are quota-blocked), pairing this with the base GroqBackend lets
+    validate_linter.py measure same-provider, different-model-size
+    divergence as a temporary substitute. This answers a different,
+    narrower question than cross-provider divergence (RUNE's actual
+    research question) — treat results from this pairing as a stand-in,
+    not equivalent evidence, and prefer a real cross-provider pairing
+    (e.g. groq + gemini) once available.
+    """
+    name = "groq_large"
+
+    def __init__(self, model: str = "llama-3.3-70b-versatile"):
+        super().__init__(model=model)
