@@ -36,8 +36,8 @@ import requests
 from .base import Backend
 
 RETRYABLE_STATUS_CODES = {429, 500, 503}
-MAX_RETRIES = 4
-BASE_BACKOFF_SECONDS = 2.0
+MAX_RETRIES = 5
+BASE_BACKOFF_SECONDS = 5.0
 
 
 class NIMBackend(Backend):
