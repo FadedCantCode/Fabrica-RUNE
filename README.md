@@ -41,11 +41,17 @@ explicitly unvalidated future work, not a current feature.
 ```bash
 cd reference-implementation
 pip install -r requirements.txt
-cp .env.example .env   # add your OPENAI_API_KEY / ANTHROPIC_API_KEY
+cp .env.example .env   # add the key(s) for whichever backends you want to use
 python runtime.py ../examples/research.rune --task "Who is Alan Turing?" --backend openai
 python runtime.py ../examples/research.rune --task "Who is Alan Turing?" --backend anthropic
 python runtime.py ../examples/research.rune --task "Who is Alan Turing?" --backend ollama --model llama3
 ```
+
+Backends currently supported: `openai`, `anthropic`, `ollama` (local), `gemini`, `groq`,
+`groq_large` (same as `groq`, larger model — see note below), `openrouter`, `deepseek`.
+Not every backend's free tier behaves the same way — some cap requests per day, some
+require a funded account balance even for "free" models. See each adapter's docstring in
+[`reference-implementation/backends/`](reference-implementation/backends/) for specifics.
 
 Each run prints the same plan structure (`search → analyze → summarize`) executed by a
 different model. See [`evaluation.py`](reference-implementation/evaluation.py) to run all
@@ -76,6 +82,13 @@ overlap across backend outputs per step). See
 logic and [`validate_linter.py`](reference-implementation/validate_linter.py) for the
 honesty check. Until you've run this against real data across multiple tasks and
 genomes, treat the linter's scores as an untested hypothesis, not a result.
+
+**First recorded data point (2026-06-16):** a 12-task run on `research.rune` comparing
+`groq` against `groq_large` (same provider, different model size — a temporary stand-in
+used while other free-tier backends were quota-blocked) produced a correlation of 0.719
+between predicted risk and measured divergence. This is a positive signal, but it is
+*not* cross-provider evidence — see [`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the
+full caveat and the pending real cross-provider run.
 
 ## Why
 
@@ -116,10 +129,17 @@ RUNE/
 └── reference-implementation/
     ├── runtime.py
     ├── evaluation.py
+    ├── divergence_linter.py
+    ├── validate_linter.py
     ├── backends/
+    │   ├── base.py
     │   ├── openai_backend.py
     │   ├── anthropic_backend.py
-    │   └── ollama_backend.py
+    │   ├── ollama_backend.py
+    │   ├── gemini_backend.py
+    │   ├── groq_backend.py       (GroqBackend + GroqLargeBackend)
+    │   ├── openrouter_backend.py
+    │   └── deepseek_backend.py
     ├── requirements.txt
     └── .env.example
 ```
