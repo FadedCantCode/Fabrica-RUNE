@@ -17,6 +17,7 @@ from rune_loader import load_rune, RuneValidationError
 from backends.openai_backend import OpenAIBackend
 from backends.anthropic_backend import AnthropicBackend
 from backends.ollama_backend import OllamaBackend
+from backends.gemini_backend import GeminiBackend
 
 load_dotenv()
 
@@ -24,6 +25,7 @@ BACKEND_REGISTRY = {
     "openai": OpenAIBackend,
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
+    "gemini": GeminiBackend,
 }
 
 STEP_INSTRUCTIONS = {
