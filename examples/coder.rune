@@ -1,0 +1,19 @@
+species: coder
+version: "0.1.0"
+description: >
+  An agent that writes a small code solution and then verifies it
+  against the stated requirements before returning.
+
+genome:
+  - analyze
+  - code
+  - test
+  - summarize
+
+tools: []
+
+constraints:
+  - cite_sources
+
+behavior:
+  curiosity: 0.3

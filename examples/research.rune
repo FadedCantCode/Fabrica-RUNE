@@ -1,0 +1,19 @@
+species: research
+version: "0.1.0"
+description: >
+  An agent that researches a topic by searching, analyzing findings,
+  and producing a cited summary.
+
+genome:
+  - search
+  - analyze
+  - summarize
+
+tools:
+  - search
+
+constraints:
+  - cite_sources
+
+behavior:
+  curiosity: 0.8
