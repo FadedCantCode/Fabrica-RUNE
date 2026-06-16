@@ -31,6 +31,19 @@ BACKEND_REGISTRY = {
     "groq": GroqBackend,
 }
 
+# Free-tier rate limits vary a lot per provider. Gemini Flash's free tier
+# is roughly 10 requests/minute as of early-2026 pricing, so a safe gap is
+# ~7s, not the 2s default that's fine for more generous tiers like Groq's.
+# Override here rather than guessing one global number that's wrong for
+# everyone.
+BACKEND_CALL_DELAYS = {
+    "gemini": 7.0,
+    "groq": 2.0,
+    "openai": 1.0,
+    "anthropic": 1.0,
+    "ollama": 0.0,  # local, no rate limit
+}
+
 STEP_INSTRUCTIONS = {
     "search": (
         "Step: SEARCH. State what information you need to find for this task, "
@@ -73,16 +86,17 @@ def build_system_prompt(rune) -> str:
     return " ".join(lines)
 
 
-def run_agent(rune, backend, task: str, call_delay: float = 2.0) -> dict:
+def run_agent(rune, backend, task: str, call_delay: float = None) -> dict:
     """
-    call_delay: seconds to sleep after each backend call. Free tiers
-    (Gemini, Groq) enforce requests-per-minute limits; a validate_linter.py
-    run with many tasks fires many sequential calls and can hit a 429
-    without this. 2.0s keeps you comfortably under typical free-tier
-    limits (e.g. Gemini's ~15-30 req/min on free models) without making
-    a 12-task run unbearably slow. Set to 0.0 if you're on a paid tier
-    with higher limits and want faster runs.
+    call_delay: seconds to sleep after each backend call. If not given,
+    looks up a per-backend default from BACKEND_CALL_DELAYS, since free
+    tiers have very different rate limits (Gemini's ~10 RPM is much
+    tighter than Groq's). Pass 0.0 explicitly to disable throttling
+    entirely (e.g. if you're on a paid tier with high limits).
     """
+    if call_delay is None:
+        call_delay = BACKEND_CALL_DELAYS.get(backend.name, 2.0)
+
     system_prompt = build_system_prompt(rune)
     transcript = []
     context = f"Original task: {task}"
