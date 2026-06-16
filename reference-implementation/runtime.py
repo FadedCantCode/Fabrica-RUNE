@@ -18,6 +18,7 @@ from backends.openai_backend import OpenAIBackend
 from backends.anthropic_backend import AnthropicBackend
 from backends.ollama_backend import OllamaBackend
 from backends.gemini_backend import GeminiBackend
+from backends.groq_backend import GroqBackend
 
 load_dotenv()
 
@@ -26,6 +27,7 @@ BACKEND_REGISTRY = {
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
     "gemini": GeminiBackend,
+    "groq": GroqBackend,
 }
 
 STEP_INSTRUCTIONS = {
