@@ -24,7 +24,7 @@ BASE_BACKOFF_SECONDS = 2.0
 class GeminiBackend(Backend):
     name = "gemini"
 
-    def __init__(self, model: str = "gemini-2.5-flash"):
+    def __init__(self, model: str = "gemini-2.5-flash-lite"):
         self.model = model
         self.api_key = os.environ.get("GOOGLE_API_KEY")
         if not self.api_key:
