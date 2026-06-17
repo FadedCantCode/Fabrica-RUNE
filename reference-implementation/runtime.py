@@ -1,5 +1,5 @@
 """
-runtime.py — Loads a .rune file and executes its genome against a chosen backend.
+runtime.py ??Loads a .rune file and executes its genome against a chosen backend.
 
 Usage:
     python runtime.py ../examples/research.rune --task "Who is Alan Turing?" --backend openai
@@ -23,6 +23,7 @@ from backends.groq_backend import GroqBackend, GroqLargeBackend, GroqQwenBackend
 from backends.openrouter_backend import OpenRouterBackend
 from backends.deepseek_backend import DeepSeekBackend
 from backends.nim_backend import NIMBackend, NIMDeepSeekBackend
+from backends.cerebras_backend import CerebrasBackend
 
 load_dotenv()
 
@@ -38,6 +39,7 @@ BACKEND_REGISTRY = {
     "deepseek": DeepSeekBackend,
     "nim": NIMBackend,
     "nim_deepseek": NIMDeepSeekBackend,
+    "cerebras": CerebrasBackend,
 }
 
 # Free-tier rate limits vary a lot per provider. Gemini Flash's free tier
@@ -54,6 +56,7 @@ BACKEND_CALL_DELAYS = {
     "deepseek": 1.0,
     "nim": 2.0,
     "nim_deepseek": 2.0,
+    "cerebras": 1.0,
     "openai": 1.0,
     "anthropic": 1.0,
     "ollama": 0.0,  # local, no rate limit
@@ -148,7 +151,7 @@ def main():
     try:
         rune = load_rune(args.rune_path)
     except RuneValidationError as e:
-        print(f"❌ Invalid .rune file: {e}", file=sys.stderr)
+        print(f"??Invalid .rune file: {e}", file=sys.stderr)
         sys.exit(1)
 
     backend_cls = BACKEND_REGISTRY[args.backend]
@@ -157,7 +160,7 @@ def main():
     try:
         result = run_agent(rune, backend, args.task)
     except Exception as e:
-        print(f"❌ Run failed on backend '{args.backend}': {e}", file=sys.stderr)
+        print(f"??Run failed on backend '{args.backend}': {e}", file=sys.stderr)
         sys.exit(1)
 
     if args.json:
