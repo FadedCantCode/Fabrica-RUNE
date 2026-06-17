@@ -83,7 +83,7 @@ logic and [`validate_linter.py`](reference-implementation/validate_linter.py) fo
 honesty check. Until you've run this against real data across multiple tasks and
 genomes, treat the linter's scores as an untested hypothesis, not a result.
 
-### Results
+## Results
 
 **First recorded data point (2026-06-16):** a 12-task run on `research.rune` comparing
 `groq` against `groq_large` (same provider, different model size — a temporary stand-in
