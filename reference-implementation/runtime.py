@@ -33,7 +33,7 @@ BACKEND_REGISTRY = {
     "gemini": GeminiBackend,
     "groq": GroqBackend,
     "groq_large": GroqLargeBackend,
-    "groq_qwen": GroqQwenBackend
+    "groq_qwen": GroqQwenBackend,
     "openrouter": OpenRouterBackend,
     "deepseek": DeepSeekBackend,
     "nim": NIMBackend,
