@@ -35,10 +35,12 @@ one to be working and measured before starting the next.
       correlations 0.719/0.99/0.999. coder.rune: after investigating a real discrepancy
       and fixing a genuine structural gap in the heuristic — see detailed history below
       — final correlation 0.967, also a positive result. multitool.rune: tested
-      2026-06-17, correlation -0.086 — a real negative result with a specific inversion
-      (analyze predicted highest-risk, measured lowest), see detailed result below. 2/3
-      positive so far; investigating whether a structural fix resolves the third before
-      concluding this item is satisfied or revealing a real limitation.)
+      2026-06-17, v1 correlation -0.086; a fix attempt (format-anchoring constraint
+      suppression) made it worse, -0.604 — see detailed history below. Honest status:
+      2/3 genome shapes positively validated, 1 genuinely unresolved. This item is not
+      satisfied yet; multitool.rune revealed real structural gaps — position-dependent
+      divergence for repeated steps, non-uniform constraint effects — that need more
+      data before a real fix, not another guess, can be justified.)
 - [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
       history. If correlation is weak or negative, say so and revise the heuristic weights
       in `divergence_linter.py`, or scrap the specific signals that don't hold up.
@@ -199,6 +201,44 @@ unchanged (neither uses `structured_output`) before considering this fix valid.
 `multitool.rune`'s new predicted scores: `analyze` 0.56 → 0.392, `search` (both
 occurrences) 0.375 → 0.285, `summarize` 0.21 → 0.147 — `analyze` still ranks highest,
 but by a much smaller margin, closer to what the measured data actually showed.
+
+### Recorded result: 2026-06-17, `groq_qwen` vs `mistral`, `multitool.rune`, 12 tasks (v2, after format-anchoring fix)
+
+Correlation: **-0.604** — worse, not better. A strong negative correlation; the
+heuristic is now actively predicting backwards for this genome.
+
+**Honest read: the fix was directionally right for one step and wrong as a blanket
+rule.** `analyze`'s measured divergence (0.158) did land close to its new, lower
+prediction — the hypothesis that `structured_output` suppresses `analyze`'s cross-model
+divergence by forcing similarly-shaped output appears genuinely correct for that one
+step. But applying the same 0.7 suppression factor uniformly to every step in the
+genome was the mistake. `summarize`, predicted as clearly lowest-risk (0.147) after the
+fix, measured as the *second-highest* divergence step (0.221) — a different, new
+inversion that wasn't this stark in v1. The two `search` occurrences also split further
+apart in measured terms (0.157 vs 0.237) while still being predicted identically (0.285
+each) — the position-divergence effect flagged in v1 persists and the fix did nothing
+to address it, since it was never aimed at that part of the problem.
+
+**What this means:** `structured_output`'s real effect on divergence is not a uniform,
+step-independent multiplier. It's plausible the constraint helps most for steps that are
+naturally prose-heavy and interpretive (`analyze`), where a forced list/header structure
+gives both models a shared scaffold to converge around — but does little or nothing for
+a step like `summarize`, which was already short and constrained before the format
+requirement was added, or may even increase apparent divergence if the two models choose
+different ways to "structure" a final answer (different header choices, different list
+groupings) that a 3-5 sentence prose summary wouldn't have exposed.
+
+**Status: this fix is reverted in spirit, not advanced further today.** Don't tune the
+0.7 factor, or make it step-specific by fitting to this exact result — that's the same
+curve-fitting risk flagged earlier in this document, now with even less data to fit
+against (12 tasks, one genome, one constraint). The honest conclusion right now:
+`multitool.rune` has exposed at least two real, distinct structural gaps in the current
+heuristic — position-dependent divergence for repeated tool steps, and non-uniform
+effects of format-anchoring constraints across different step types — and both need
+more data (more tasks, ideally a fourth genome isolating each variable independently)
+before a real fix can be justified rather than guessed. Stage 1's "test across 3 genome
+shapes" item should be read honestly as: 2 genomes positively validated, 1 genome
+revealing real unresolved limitations in the heuristic, not yet a clean 3-for-3.
 
 ## Stage 2 — Spec maturity
 
