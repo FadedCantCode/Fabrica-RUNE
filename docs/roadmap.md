@@ -17,13 +17,11 @@ one to be working and measured before starting the next.
 
 - [x] Run `validate_linter.py` across 12 distinct tasks on the `research` genome
       (2026-06-16, `groq` vs `groq_large` — see caveat below)
-- [ ] Run the same 12-task set on a *clean* cross-provider pairing (different companies,
+- [x] Run the same 12-task set on a *clean* cross-provider pairing (different companies,
       different infrastructure, no rate-limit interference distorting the measurement).
-      `groq` vs `cerebras` (recorded below, 0.99) is genuinely cross-provider, but
-      Cerebras was rate-limited throughout that run — every task hit at least one 429
-      before succeeding via retry — so some of that divergence may reflect request
-      throttling rather than pure model behavior. This box stays unchecked until a
-      cross-provider run completes without that kind of interference.
+      Done 2026-06-17: `groq_qwen` (Alibaba's Qwen3-32B, on Groq) vs `mistral` (Mistral
+      Small, on Mistral's own infrastructure) — see result recorded below. Correlation:
+      0.999, with zero retries or rate-limit interference during the run.
 - [ ] Run `validate_linter.py` across at least 10 distinct tasks and both example genomes
 - [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
       history. If correlation is weak or negative, say so and revise the heuristic weights
