@@ -22,7 +22,21 @@ one to be working and measured before starting the next.
       Done 2026-06-17: `groq_qwen` (Alibaba's Qwen3-32B, on Groq) vs `mistral` (Mistral
       Small, on Mistral's own infrastructure) — see result recorded below. Correlation:
       0.999, with zero retries or rate-limit interference during the run.
-- [ ] Run `validate_linter.py` across at least 10 distinct tasks and both example genomes
+- [x] Replace the lexical-overlap (Jaccard) divergence proxy with embedding-based semantic
+      similarity. Done 2026-06-17 (`validate_linter.py`, `sentence-transformers`'s
+      `all-MiniLM-L6-v2`, runs offline, no API key). Empirically confirmed working
+      (similar-meaning-different-words scored 0.564, genuinely-different-topics scored
+      0.071) before relying on it. Materially improved the coder.rune result (0.362 →
+      0.497 on the same dataset, same predictions, only the measurement changed) —
+      confirms the original hypothesis that Jaccard was penalizing code's natural
+      surface-form variation. `--use-jaccard` flag still available for comparison
+      against historical results.
+- [ ] Test across at least 3 distinct genome shapes (research.rune: 3 positive results,
+      correlations 0.719/0.99/0.999. coder.rune: after investigating a real discrepancy
+      and fixing a genuine structural gap in the heuristic — see detailed history below
+      — final correlation 0.967, also a positive result. 2/3 done; a third genome shape
+      that exercises parts of the heuristic neither of these two touch (e.g. multiple
+      tool steps, or multiple constraints) is the remaining item.)
 - [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
       history. If correlation is weak or negative, say so and revise the heuristic weights
       in `divergence_linter.py`, or scrap the specific signals that don't hold up.
