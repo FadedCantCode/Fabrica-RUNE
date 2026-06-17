@@ -68,18 +68,50 @@ SUMMARIZE_PRECEDED_BY_SPECIFICITY = {
     "code": 0.5,  # same reasoning, slightly less acute than following "test"
 }
 
+# Some constraints anchor a step's OUTPUT FORMAT directly (e.g. "use headers
+# and lists"), which plausibly suppresses cross-model divergence more directly
+# than a content-behavior constraint like cite_sources does — forcing two
+# models toward a similarly-shaped output regardless of how differently they
+# actually reason. Discovered 2026-06-17: multitool.rune (the first genome
+# with structured_output) measured "analyze" as the LOWEST-divergence step
+# despite the heuristic predicting it as clearly highest (0.56) — a ranking
+# inversion, not just a magnitude miss, that held from a 3-task smoke test
+# through the full 12-task run. The pre-fix heuristic had no mechanism for a
+# constraint to actually affect specificity_risk; constraint_risk only ever
+# measured constraint *coverage* (count / genome length), treating
+# cite_sources and structured_output as functionally identical. This table
+# is the fix: a multiplicative suppression factor applied to specificity_risk
+# for constraints that anchor format. cite_sources is intentionally absent —
+# it doesn't constrain output shape, just whether claims get attributed, so
+# it shouldn't suppress specificity_risk the way structured_output does. See
+# docs/roadmap.md Stage 1 for the full discrepancy history and the result of
+# testing this fix.
+FORMAT_ANCHORING_CONSTRAINTS = {
+    "structured_output": 0.7,  # multiply specificity_risk by this factor
+}
+
 TOOL_STEPS = {"search"}  # steps in runtime.py that reference a tool
 
 
-def _resolve_specificity(step: str, preceding_step: str | None) -> float:
+def _resolve_specificity(step: str, preceding_step: str | None, constraints: list[str]) -> float:
     """
-    Look up specificity risk for a step, accounting for context where the
-    step's actual ambiguity depends on what preceded it (currently only
-    "summarize" — see SUMMARIZE_PRECEDED_BY_SPECIFICITY's docstring for why).
+    Look up specificity risk for a step, accounting for:
+    1. Context where the step's actual ambiguity depends on what preceded it
+       (currently only "summarize" — see SUMMARIZE_PRECEDED_BY_SPECIFICITY).
+    2. Constraints that anchor output format, which suppress the step's
+       effective specificity_risk regardless of step identity (see
+       FORMAT_ANCHORING_CONSTRAINTS above).
     """
     if step == "summarize" and preceding_step in SUMMARIZE_PRECEDED_BY_SPECIFICITY:
-        return SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
-    return STEP_SPECIFICITY.get(step, 0.7)  # unknown step = treat as risky
+        base = SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
+    else:
+        base = STEP_SPECIFICITY.get(step, 0.7)  # unknown step = treat as risky
+
+    for constraint in constraints:
+        if constraint in FORMAT_ANCHORING_CONSTRAINTS:
+            base *= FORMAT_ANCHORING_CONSTRAINTS[constraint]
+
+    return round(base, 3)
 
 
 def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
@@ -87,8 +119,7 @@ def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
     Return a structural divergence-risk score in [0, 1] for one step.
 
     preceding_step: the genome step immediately before this one, or None if
-    this is the first step. Currently only affects "summarize" scoring —
-    see _resolve_specificity. Optional and defaults to None so existing
+    this is the first step. Optional and defaults to None so existing
     callers (and any external code importing this function) keep working
     unchanged; lint() below always passes it correctly for steps within a
     real genome.
@@ -99,7 +130,7 @@ def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
     constraints = rune.constraints if rune.constraints is not None else []
     genome = rune.genome if rune.genome is not None else []
 
-    specificity_risk = _resolve_specificity(step, preceding_step)
+    specificity_risk = _resolve_specificity(step, preceding_step, constraints)
 
     is_tool_step = step in TOOL_STEPS
     if is_tool_step:
