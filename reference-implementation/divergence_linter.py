@@ -34,7 +34,9 @@ from rune_loader import load_rune, RuneValidationError
 STEP_SPECIFICITY = {
     "search":    0.6,   # "describe what you'd search for" — open-ended phrasing
     "analyze":   0.8,   # "reason through key facts" — maximally interpretive
-    "summarize": 0.3,   # constrained: fixed length, clear goal
+    "summarize": 0.3,   # base value, for when summarize follows a well-defined
+                         # prior step (e.g. analyze) — see SUMMARIZE_PRECEDED_BY
+                         # below for why this isn't always the right value.
     "code":      0.5,   # open on approach, constrained on output format
     "test":      0.75,  # "verify your code works" has no fixed format models
                          # converge on — some write unit tests, some reason in
@@ -43,24 +45,61 @@ STEP_SPECIFICITY = {
                          # to analyze's ambiguity than to code's. Revised
                          # 2026-06-17 after coder.rune scored 0.152 correlation
                          # with the old value — see docs/roadmap.md Stage 1 for
-                         # the full reasoning. This is a substantive re-read of
-                         # what the instruction demands, not a fit to that one
-                         # dataset; re-validate after this change, don't assume
-                         # it fixes the result.
+                         # the full reasoning.
+}
+
+# runtime.py's instruction for "summarize" is a single hardcoded string
+# ("Produce the final answer to the original task in 3-5 sentences") used
+# unchanged regardless of genome shape. That instruction's actual ambiguity
+# depends on what it's summarizing: research.rune's summarize follows
+# analyze (a well-defined research synthesis — most models converge on
+# similar prose), but coder.rune's summarize follows test (verifying a
+# coding deliverable). "Summarize the final answer" after writing and
+# testing code has no fixed convention — restate the code? describe what it
+# does? report pass/fail? give usage instructions? — making it genuinely
+# more ambiguous than the base 0.3 assumes. Discovered 2026-06-17: across
+# three separate coder.rune validation runs (different STEP_SPECIFICITY
+# values, different divergence-measurement methods), summarize consistently
+# measured as the second-highest-divergence step despite being predicted as
+# clearly lowest-risk every time — a structural fix, not a tuning fix, was
+# needed. See docs/roadmap.md Stage 1 for the full discrepancy history.
+SUMMARIZE_PRECEDED_BY_SPECIFICITY = {
+    "test": 0.6,  # raised from the 0.3 base — see comment above
+    "code": 0.5,  # same reasoning, slightly less acute than following "test"
 }
 
 TOOL_STEPS = {"search"}  # steps in runtime.py that reference a tool
 
 
-def score_step(step: str, rune) -> dict:
-    """Return a structural divergence-risk score in [0, 1] for one step."""
+def _resolve_specificity(step: str, preceding_step: str | None) -> float:
+    """
+    Look up specificity risk for a step, accounting for context where the
+    step's actual ambiguity depends on what preceded it (currently only
+    "summarize" — see SUMMARIZE_PRECEDED_BY_SPECIFICITY's docstring for why).
+    """
+    if step == "summarize" and preceding_step in SUMMARIZE_PRECEDED_BY_SPECIFICITY:
+        return SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
+    return STEP_SPECIFICITY.get(step, 0.7)  # unknown step = treat as risky
+
+
+def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
+    """
+    Return a structural divergence-risk score in [0, 1] for one step.
+
+    preceding_step: the genome step immediately before this one, or None if
+    this is the first step. Currently only affects "summarize" scoring —
+    see _resolve_specificity. Optional and defaults to None so existing
+    callers (and any external code importing this function) keep working
+    unchanged; lint() below always passes it correctly for steps within a
+    real genome.
+    """
     # Defensive: rune_loader.py currently always coerces constraints to a
     # list (never None), but guard here anyway so a future loader change
     # can't silently crash this function with a TypeError on len(None).
     constraints = rune.constraints if rune.constraints is not None else []
     genome = rune.genome if rune.genome is not None else []
 
-    specificity_risk = STEP_SPECIFICITY.get(step, 0.7)  # unknown step = treat as risky
+    specificity_risk = _resolve_specificity(step, preceding_step)
 
     is_tool_step = step in TOOL_STEPS
     if is_tool_step:
@@ -109,7 +148,11 @@ def score_step(step: str, rune) -> dict:
 
 
 def lint(rune) -> dict:
-    step_scores = [score_step(step, rune) for step in rune.genome]
+    genome = rune.genome if rune.genome is not None else []
+    step_scores = [
+        score_step(step, rune, preceding_step=(genome[i - 1] if i > 0 else None))
+        for i, step in enumerate(genome)
+    ]
     overall = round(sum(s["risk_score"] for s in step_scores) / len(step_scores), 3) if step_scores else 0.0
 
     return {
