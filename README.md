@@ -89,29 +89,17 @@ genomes, treat the linter's scores as an untested hypothesis, not a result.
 `groq` against `groq_large` (same provider, different model size — a temporary stand-in
 used while other free-tier backends were quota-blocked) produced a correlation of 0.719
 between predicted risk and measured divergence. This is a positive signal, but it is
-*not* cross-provider evidence — see [`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the
-full caveat and the pending real cross-provider run.
+*not* cross-provider evidence.
 
-### Recorded result: 2026-06-16, `groq` (Llama) vs `cerebras` (gpt-oss-120b), `research.rune`, 12 tasks
-
-Correlation between predicted risk and measured divergence: **0.99** (strong positive
-signal). Measured divergence spread meaningfully across steps (0.873–0.906) rather than
-clustering tightly, a different and more informative shape than the groq/groq_large run
-above.
-
-**Caveat, important:** this is a genuinely different pairing than groq/groq_large — Llama
-(Meta) on Groq vs gpt-oss-120b (OpenAI's open-weight model) on Cerebras, two different
-labs' model lineages on two different hardware stacks (LPU vs wafer-scale chips). That's
-closer to a real cross-provider comparison than this morning's same-provider run, but it
-is not the original research question's framing of comparing identical or near-identical
-model classes across providers. A second caveat specific to this run: Cerebras's free
-tier was visibly rate-limited throughout (every task triggered at least one 429, recovered
-via retry-with-backoff). It's possible request throttling itself introduced extra response
-variance independent of the linter's structural logic — this run cannot rule that out.
-Treat 0.99 as a strong second data point, not as definitive proof: two independent
-positive signals (0.719 and 0.99) across two different pairings is more convincing than
-either alone, but a cleaner, non-rate-limited cross-provider run is still the strongest
-remaining validation step.
+**Second recorded data point (2026-06-16, same day):** a 12-task run comparing `groq`
+(Llama) against `cerebras` (gpt-oss-120b) — two different labs' models on two different
+hardware stacks — produced a correlation of **0.99**, with measured divergence spread
+meaningfully across genome steps rather than clustering tightly. This is the stronger of
+the two results so far, though Cerebras's free tier was visibly rate-limited throughout
+the run (every task hit at least one 429 before succeeding via retry), so some of that
+divergence may reflect request throttling rather than pure model behavior. See
+[`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the full caveats on both runs and the
+still-pending cleaner cross-provider validation.
 
 ## Why
 
