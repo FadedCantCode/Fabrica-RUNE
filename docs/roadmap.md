@@ -240,6 +240,42 @@ before a real fix can be justified rather than guessed. Stage 1's "test across 3
 shapes" item should be read honestly as: 2 genomes positively validated, 1 genome
 revealing real unresolved limitations in the heuristic, not yet a clean 3-for-3.
 
+### Methodological rule, added 2026-06-17: isolate one variable per genome experiment
+
+`multitool.rune` combined two untested dimensions at once — a repeated tool step
+(position effect) and two simultaneous constraints, one of them new (`structured_output`,
+a constraint effect). When the result came back weak (-0.086), then worse after a fix
+attempt (-0.604), there was no way to tell which dimension the fix attempt was actually
+acting on, or whether it was fighting two effects at once. The `structured_output` fix
+turned out to be a real, partial insight (correctly explained `analyze`) tangled with a
+real miss (wrongly generalized to `summarize`) — but disentangling that took real
+effort, and could have been avoided by design.
+
+**Rule going forward: each new genome built specifically to test the heuristic should
+change exactly one structural dimension relative to existing genomes** (one new step
+type, OR one repeated step, OR one new constraint — not multiple at once), unless a
+prior single-variable experiment has already isolated each dimension separately and a
+combined genome is being used to test for *interaction effects* specifically (which
+should be stated explicitly as the goal, not stumbled into accidentally).
+
+**Concrete next steps for the two open gaps, in isolation:**
+1. **Position effect, isolated**: create `multitool_v2.rune` — identical to
+   `multitool.rune` (search → analyze → search → summarize) but with `constraints:
+   [cite_sources]` only, no `structured_output`. If the position gap (first search vs
+   second search measuring different divergence) holds up without the constraint
+   confound, that's a real, isolated finding worth a real fix (e.g. a
+   `SUMMARIZE_PRECEDED_BY_SPECIFICITY`-style position-aware table, generalized beyond
+   just "summarize").
+2. **Constraint effect, isolated**: separately, create a genome with `structured_output`
+   present but with no repeated steps (e.g. three or four distinct steps, no position
+   confound), to test whether the constraint's effect is genuinely step-type-dependent
+   (helps `analyze`, doesn't help `summarize`) without `multitool.rune`'s repeated-search
+   structure muddying the result.
+
+Do not run a third combined experiment on this question before these two isolated ones
+exist — that would repeat the same mistake this section documents.
+
+
 ## Stage 2 — Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
