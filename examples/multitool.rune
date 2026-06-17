@@ -1,0 +1,25 @@
+species: multitool
+version: "0.1.0"
+description: >
+  An agent that performs an initial search, analyzes early findings,
+  searches again to fill gaps revealed by that analysis, then produces
+  a structured, cited summary. Designed to exercise two parts of the
+  divergence-risk heuristic that research.rune and coder.rune never
+  touched: multiple tool (search) steps in one genome, and multiple
+  simultaneous constraints (cite_sources + structured_output).
+
+genome:
+  - search
+  - analyze
+  - search
+  - summarize
+
+tools:
+  - search
+
+constraints:
+  - cite_sources
+  - structured_output
+
+behavior:
+  curiosity: 0.6
