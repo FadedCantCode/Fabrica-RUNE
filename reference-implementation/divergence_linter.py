@@ -36,7 +36,17 @@ STEP_SPECIFICITY = {
     "analyze":   0.8,   # "reason through key facts" — maximally interpretive
     "summarize": 0.3,   # constrained: fixed length, clear goal
     "code":      0.5,   # open on approach, constrained on output format
-    "test":      0.55,  # open on what counts as a sufficient test
+    "test":      0.75,  # "verify your code works" has no fixed format models
+                         # converge on — some write unit tests, some reason in
+                         # prose, some mentally trace execution. That's a wider
+                         # behavioral fork than the original 0.55 assumed; closer
+                         # to analyze's ambiguity than to code's. Revised
+                         # 2026-06-17 after coder.rune scored 0.152 correlation
+                         # with the old value — see docs/roadmap.md Stage 1 for
+                         # the full reasoning. This is a substantive re-read of
+                         # what the instruction demands, not a fit to that one
+                         # dataset; re-validate after this change, don't assume
+                         # it fixes the result.
 }
 
 TOOL_STEPS = {"search"}  # steps in runtime.py that reference a tool
