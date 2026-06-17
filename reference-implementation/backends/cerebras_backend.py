@@ -1,5 +1,5 @@
 """
-cerebras_backend.py — Real Cerebras Inference API adapter (OpenAI-compatible).
+cerebras_backend.py ??Real Cerebras Inference API adapter (OpenAI-compatible).
 
 Requires CEREBRAS_API_KEY in the environment (see .env.example). No
 credit card required to sign up. As of 2026 the free tier offers
@@ -10,12 +10,12 @@ even with long retry backoff).
 
 Cerebras runs on custom wafer-scale chip hardware rather than GPUs,
 making it a genuinely different infrastructure stack from Groq's LPU
-hardware — but note it hosts mostly the same open-weight model families
+hardware ??but note it hosts mostly the same open-weight model families
 (Llama, Qwen) that Groq and NIM also host. For a cross-*model-family*
 comparison (not just cross-infrastructure), pair this with a
 non-Llama backend like nim_deepseek rather than with groq alone.
 
-Default model is llama-3.3-70b. Override via the `model` constructor
+Default model is gpt-oss-120b. Override via the `model` constructor
 arg for other models in Cerebras's catalog (e.g. "llama3.1-8b" for a
 smaller/faster option, or check the current list at
 inference-docs.cerebras.ai for newer additions like Qwen3 variants).
@@ -36,7 +36,7 @@ BASE_BACKOFF_SECONDS = 2.0
 class CerebrasBackend(Backend):
     name = "cerebras"
 
-    def __init__(self, model: str = "llama-3.3-70b"):
+    def __init__(self, model: str = "gpt-oss-120b"):
         self.model = model
         self.api_key = os.environ.get("CEREBRAS_API_KEY")
         if not self.api_key:
