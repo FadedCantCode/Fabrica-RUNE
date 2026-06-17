@@ -90,6 +90,10 @@ STEP_INSTRUCTIONS = {
 
 CONSTRAINT_TEXT = {
     "cite_sources": "You must attribute claims to sources where applicable.",
+    "structured_output": (
+        "You must format every step's response using clear structure: headers, "
+        "numbered or bulleted lists where appropriate, not unstructured prose."
+    ),
 }
 
 
