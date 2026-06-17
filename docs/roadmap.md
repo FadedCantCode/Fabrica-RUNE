@@ -3,19 +3,6 @@
 Staged by what's actually demonstrable, not by ambition. Each stage requires the previous
 one to be working and measured before starting the next.
 
-## Methodology citation tiers
-
-Going forward, every structural/methodological decision in this roadmap is tagged with
-one of three tiers, so it's always clear how much external grounding a given choice has:
-
-- **Tier 1 — directly paper-supported**: the technique itself is a established method
-  with a specific, citable paper behind it.
-- **Tier 2 — inspired by a general principle, but specific values are self-derived**:
-  a broader field's reasoning motivated the approach, but the exact numbers/thresholds
-  were tuned against this project's own data, not derived from any paper.
-- **Tier 3 — pure engineering hypothesis, no external backing**: an idea formed from
-  observing this project's own results, with no claimed academic grounding.
-
 ### Tier 1 — directly paper-supported
 
 - **Semantic-similarity divergence measurement** (`validate_linter.py`,
@@ -342,6 +329,73 @@ should be stated explicitly as the goal, not stumbled into accidentally).
 
 Do not run a third combined experiment on this question before these two isolated ones
 exist — that would repeat the same mistake this section documents.
+
+## Methodology citation tiers
+
+Going forward, every structural/methodological decision in this roadmap is tagged with
+one of three tiers, so it's always clear how much external grounding a given choice has:
+
+- **Tier 1 — directly paper-supported**: the technique itself is a established method
+  with a specific, citable paper behind it.
+- **Tier 2 — inspired by a general principle, but specific values are self-derived**:
+  a broader field's reasoning motivated the approach, but the exact numbers/thresholds
+  were tuned against this project's own data, not derived from any paper.
+- **Tier 3 — pure engineering hypothesis, no external backing**: an idea formed from
+  observing this project's own results, with no claimed academic grounding.
+
+### Tier 1 — directly paper-supported
+
+- **Semantic-similarity divergence measurement** (`validate_linter.py`,
+  `sentence-transformers`, `all-MiniLM-L6-v2`): the underlying technique is
+  Sentence-BERT — Reimers, N. & Gurevych, I. (2019). "Sentence-BERT: Sentence
+  Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP-IJCNLP 2019*,
+  pp. 3982–3992. https://aclanthology.org/D19-1410/. The paper establishes that
+  siamese/triplet-trained BERT embeddings, compared via cosine similarity, produce
+  semantically meaningful similarity scores — directly supporting this project's use
+  of embedding cosine similarity (inverted: 1 - similarity) as a divergence proxy.
+  What is NOT paper-supported: the specific choice to use `1 - similarity` as a
+  "divergence score," and the decision to average pairwise similarities across more
+  than two backends — these are this project's own adaptations of the underlying
+  technique, not claims made in the original paper.
+
+### Tier 2 — general principle, self-derived specifics
+
+- **`SUMMARIZE_PRECEDED_BY_SPECIFICITY`** (`divergence_linter.py`): the general
+  principle — that a step's ambiguity depends on the semantic context preceding it,
+  not just the step's own instruction text — is consistent with longstanding work in
+  NLP/discourse processing on context-dependent interpretation (e.g. discourse
+  coherence and anaphora resolution literatures broadly establish that the same
+  utterance can have different interpretive constraints depending on prior context).
+  No specific paper was consulted before choosing the values `0.6` (after "test") and
+  `0.5` (after "code") — these were derived from observing three independent
+  `coder.rune` validation runs in this project, not from any external source. Citing
+  a specific discourse-processing paper here would overstate the connection; the
+  values themselves are this project's own.
+- **"Isolate one variable per genome experiment" methodological rule**: this is a
+  simplified instance of one-factor-at-a-time experimentation, a long-established
+  principle in Design of Experiments (DOE) / statistics. A representative general
+  reference: Montgomery, D. C. *Design and Analysis of Experiments* (various
+  editions) — standard textbook treatment of confounding and factor isolation. This
+  project does not implement full factorial design (no factor matrix, no formal
+  ANOVA); it borrows only the core warning that principle gives — don't change
+  multiple structural dimensions in one experiment if you need to attribute the
+  result to a specific cause — discovered the hard way via `multitool.rune`'s v1/v2
+  results before this connection to the wider DOE literature was made explicit.
+
+### Tier 3 — pure engineering hypothesis, no external backing
+
+- **`FORMAT_ANCHORING_CONSTRAINTS` (reverted)**: the hypothesis that a
+  format-anchoring constraint like `structured_output` suppresses a step's
+  divergence by a multiplicative factor was formed entirely from observing
+  `multitool.rune`'s v1 result (analyze measuring far lower than predicted). No
+  paper was sought or found to support the specific `0.7` factor, or the claim that
+  the effect should be uniform across step types — and the uniform-effect part of
+  the hypothesis was empirically wrong (see the v2 result). This entry stays Tier 3
+  even in its reverted state, as a record of what was tried.
+- **`STEP_SPECIFICITY` base values** (e.g. `analyze: 0.8`, `test: 0.75`): these are
+  this project's own calibration against observed divergence in `research.rune` and
+  `coder.rune`, not derived from or validated against any external study of LLM
+  output variance by step type.
 
 
 ## Stage 2 — Spec maturity
