@@ -68,6 +68,31 @@ positive signals (0.719 and 0.99) across two different pairings is more convinci
 either alone, but a cleaner, non-rate-limited cross-provider run is still the strongest
 remaining validation step.
 
+### Recorded result: 2026-06-17, `groq_qwen` (Qwen3-32B) vs `mistral` (Mistral Small), `research.rune`, 12 tasks
+
+Correlation between predicted risk and measured divergence: **0.999**. Measured
+divergence spread meaningfully across steps (0.802–0.853) without clustering, and the
+run completed with zero retries or rate-limit interference on either backend.
+
+This is the cleanest result so far: `groq_qwen` runs Alibaba's Qwen3-32B on Groq's
+infrastructure (reasoning_effort explicitly disabled to avoid the model's default
+<think>-block leaking into divergence measurement — see groq_backend.py and
+mistral_backend.py docstrings for why that matters), and `mistral` runs Mistral Small on
+Mistral AI's own infrastructure. Two different labs, two different cloud providers,
+no shared rate limit, no observed throttling. Unlike every other result recorded above,
+nothing in this run's execution casts doubt on whether the measured divergence reflects
+genuine model behavior rather than infrastructure noise.
+
+Combined with the two earlier results (0.719, same-provider stand-in; 0.99,
+cross-provider but rate-limited), this is now three independent positive signals across
+three different pairing types. That's the strongest evidence so far that the linter's
+structural heuristic has real predictive signal — though "strong evidence" is still not
+the same as "proven correct in general." Remaining honest limitations: all three runs
+used the same single genome (`research.rune`) and the same 12-task set; Stage 1's other
+unchecked items (testing `coder.rune`, testing with more tasks, replacing the Jaccard
+lexical-overlap proxy with embedding-based similarity) still apply before treating this
+as fully validated.
+
 ## Stage 2 — Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
