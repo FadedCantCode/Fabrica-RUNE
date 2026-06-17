@@ -6,14 +6,28 @@ This is the honesty check for the whole project. Run this with real API
 keys across enough tasks before claiming the linter predicts anything.
 
 Measured divergence per step, across N backends running the same task:
-  - output_length_variance: variance in response length (word count) across
-    backends for that step. Cheap proxy, not semantic, but free of any
-    embedding dependency.
-  - lexical_overlap: average pairwise Jaccard similarity of word sets across
-    backend outputs for that step. Higher overlap = lower divergence.
+  - semantic_similarity (default): cosine similarity between sentence
+    embeddings (sentence-transformers, all-MiniLM-L6-v2, runs fully
+    offline after a one-time model download — no API key, no rate limit).
+    Two backends saying the same thing in different words score as
+    similar, not divergent, unlike pure word-overlap scoring.
+  - lexical_overlap (--use-jaccard flag): average pairwise Jaccard
+    similarity of word sets, kept available as a fallback for
+    environments without sentence-transformers installed, or for
+    comparing against the original measurement method.
 
-divergence_score = 1 - lexical_overlap  (so higher = more divergent, same
+divergence_score = 1 - similarity  (so higher = more divergent, same
 direction as the linter's risk_score, making correlation meaningful)
+
+CHANGELOG: switched the default measurement from lexical_overlap to
+semantic_similarity on 2026-06-17, after a coder.rune validation run
+exposed a likely bias in lexical_overlap — code has many valid surface
+forms (variable names, formatting, equivalent control flow) that would
+register as "divergent" under word-overlap scoring even when two
+implementations are functionally identical. See docs/roadmap.md Stage 1
+for the result that motivated this change, and re-run coder.rune with
+this new measurement before drawing conclusions about whether that
+result was a real heuristic failure or a measurement artifact.
 
 Usage:
     python validate_linter.py ../examples/research.rune \\
@@ -33,6 +47,31 @@ from divergence_linter import lint
 
 load_dotenv()
 
+_embedding_model = None  # lazy-loaded singleton, only if semantic mode is used
+
+
+def _get_embedding_model():
+    """
+    Lazily load the sentence-transformers model on first use, not at
+    import time — keeps --use-jaccard usable in environments where
+    sentence-transformers isn't installed, and avoids the one-time
+    model-download delay for runs that don't need it.
+    """
+    global _embedding_model
+    if _embedding_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            print(
+                "❌ sentence-transformers not installed. Run:\n"
+                "    pip install sentence-transformers\n"
+                "Or use --use-jaccard to fall back to word-overlap measurement.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedding_model
+
 
 def jaccard(a: str, b: str) -> float:
     set_a = set(a.lower().split())
@@ -42,7 +81,22 @@ def jaccard(a: str, b: str) -> float:
     return len(set_a & set_b) / len(set_a | set_b)
 
 
-def measure_divergence_for_task(rune, task: str, backend_names: list[str]) -> dict:
+def semantic_similarity(a: str, b: str) -> float:
+    """
+    Cosine similarity between sentence embeddings, clipped to [0, 1].
+    Cosine similarity from sentence-transformers can technically range
+    [-1, 1], but in practice two genuine model outputs on the same task
+    essentially never land in meaningfully negative territory — clip
+    defensively rather than letting a rare negative value invert the
+    1 - similarity divergence direction.
+    """
+    model = _get_embedding_model()
+    embeddings = model.encode([a, b])
+    raw = float(model.similarity(embeddings[0:1], embeddings[1:2])[0][0])
+    return max(0.0, min(1.0, raw))
+
+
+def measure_divergence_for_task(rune, task: str, backend_names: list[str], similarity_fn) -> dict:
     """Run one task across all backends, return per-step divergence scores."""
     per_backend_transcripts = {}
 
@@ -58,18 +112,23 @@ def measure_divergence_for_task(rune, task: str, backend_names: list[str]) -> di
         if len(outputs) < 2:
             step_divergence[step] = None
             continue
-        pairwise_overlaps = [jaccard(a, b) for a, b in itertools.combinations(outputs, 2)]
-        avg_overlap = mean(pairwise_overlaps)
-        step_divergence[step] = round(1 - avg_overlap, 3)
+        pairwise_similarities = [similarity_fn(a, b) for a, b in itertools.combinations(outputs, 2)]
+        avg_similarity = mean(pairwise_similarities)
+        step_divergence[step] = round(1 - avg_similarity, 3)
 
     return step_divergence
 
 
-def validate(rune, tasks: list[str], backend_names: list[str]) -> dict:
+def validate(rune, tasks: list[str], backend_names: list[str], use_jaccard: bool = False) -> dict:
+    similarity_fn = jaccard if use_jaccard else semantic_similarity
+    measurement_method = "lexical_overlap" if use_jaccard else "semantic_similarity"
+
     lint_report = lint(rune)
     predicted = {s["step"]: s["risk_score"] for s in lint_report["steps"]}
 
-    measured_per_task = [measure_divergence_for_task(rune, task, backend_names) for task in tasks]
+    measured_per_task = [
+        measure_divergence_for_task(rune, task, backend_names, similarity_fn) for task in tasks
+    ]
 
     # Average measured divergence per step across all tasks
     measured_avg = {}
@@ -89,6 +148,7 @@ def validate(rune, tasks: list[str], backend_names: list[str]) -> dict:
         "species": rune.species,
         "tasks_tested": tasks,
         "backends": backend_names,
+        "measurement_method": measurement_method,
         "predicted_risk": predicted,
         "measured_divergence": measured_avg,
         "correlation": corr,
@@ -111,7 +171,8 @@ def _interpret(corr, n_steps):
 def print_report(report: dict):
     print(f"=== Linter Validation: species '{report['species']}' ===")
     print(f"Tasks tested: {len(report['tasks_tested'])}")
-    print(f"Backends: {', '.join(report['backends'])}\n")
+    print(f"Backends: {', '.join(report['backends'])}")
+    print(f"Measurement method: {report['measurement_method']}\n")
 
     print(f"{'Step':<12} {'Predicted':<12} {'Measured':<12}")
     for step in report["predicted_risk"]:
@@ -129,6 +190,16 @@ def main():
     parser.add_argument("rune_path")
     parser.add_argument("--tasks", nargs="+", required=True, help="One or more task prompts to test")
     parser.add_argument("--backends", nargs="+", default=["openai", "anthropic"], choices=BACKEND_REGISTRY.keys())
+    parser.add_argument(
+        "--use-jaccard",
+        action="store_true",
+        help=(
+            "Use the original lexical-overlap (Jaccard) divergence measurement "
+            "instead of the default semantic-similarity (embedding-based) one. "
+            "Useful for comparing against historical results, or if "
+            "sentence-transformers isn't installed."
+        ),
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -142,7 +213,7 @@ def main():
         print("❌ Need at least 2 backends to measure divergence.", file=sys.stderr)
         sys.exit(1)
 
-    report = validate(rune, args.tasks, args.backends)
+    report = validate(rune, args.tasks, args.backends, use_jaccard=args.use_jaccard)
 
     if args.json:
         import json
