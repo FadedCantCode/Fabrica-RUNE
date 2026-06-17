@@ -90,3 +90,25 @@ class GroqLargeBackend(GroqBackend):
 
     def __init__(self, model: str = "llama-3.3-70b-versatile"):
         super().__init__(model=model)
+
+class GroqQwenBackend(GroqBackend):
+    """
+    Same Groq adapter, pointed at Qwen3-32B (model ID confirmed against
+    Groq's own docs: qwen/qwen3-32b). Unlike groq_large, this is a
+    genuinely different model family (Alibaba's Qwen, not Meta's Llama)
+    running on the same fast, reliable Groq infrastructure already
+    verified working throughout this project.
+
+    Useful when a local Qwen comparison (e.g. via ollama_backend.py) is
+    impractical — large Qwen models are slow on CPU-only hardware
+    without a dedicated GPU — but a cross-family signal involving Qwen
+    specifically is still wanted. Note Qwen3 models support a
+    `reasoning_effort` parameter (set to "none" to disable reasoning);
+    this adapter doesn't set it, so Qwen's default reasoning behavior
+    applies, which may affect response length/latency relative to the
+    non-reasoning Llama/GPT-OSS backends elsewhere in this project.
+    """
+    name = "groq_qwen"
+
+    def __init__(self, model: str = "qwen/qwen3-32b"):
+        super().__init__(model=model)
