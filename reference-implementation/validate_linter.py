@@ -25,9 +25,18 @@ exposed a likely bias in lexical_overlap — code has many valid surface
 forms (variable names, formatting, equivalent control flow) that would
 register as "divergent" under word-overlap scoring even when two
 implementations are functionally identical. See docs/roadmap.md Stage 1
-for the result that motivated this change, and re-run coder.rune with
-this new measurement before drawing conclusions about whether that
-result was a real heuristic failure or a measurement artifact.
+for the result that motivated this change.
+
+CHANGELOG (2026-06-17, later same day): fixed a step-name-collision bug
+in measure_divergence_for_task and validate(). Both previously keyed
+per-step results by step name alone (e.g. "search"), which silently
+overwrote earlier occurrences whenever a genome repeated a step name —
+discovered while designing multitool.rune, the first genome in this
+project to use "search" twice. Now keyed by (genome position, step name)
+internally, with a human-readable "stepname (step N)" label in output.
+This does not change any result for research.rune or coder.rune (neither
+repeats a step name), but would have silently corrupted any genome that
+does.
 
 Usage:
     python validate_linter.py ../examples/research.rune \\
@@ -97,24 +106,38 @@ def semantic_similarity(a: str, b: str) -> float:
 
 
 def measure_divergence_for_task(rune, task: str, backend_names: list[str], similarity_fn) -> dict:
-    """Run one task across all backends, return per-step divergence scores."""
+    """
+    Run one task across all backends, return per-step divergence scores.
+
+    Keyed by (position, step_name) rather than step_name alone. A genome
+    can legally repeat a step name (e.g. search -> analyze -> search ->
+    summarize, to model "search again after analyzing initial findings").
+    Keying purely by step name would silently collapse repeated steps
+    into one entry, dropping all but the last occurrence — confirmed as
+    a real bug here on 2026-06-17 while designing multitool.rune, the
+    first genome in this project to repeat a step name. Caught before
+    any real run, not after a confusing result.
+    """
     per_backend_transcripts = {}
 
     for name in backend_names:
         backend_cls = BACKEND_REGISTRY[name]
         backend = backend_cls()
         result = run_agent(rune, backend, task)
-        per_backend_transcripts[name] = {t["step"]: t["output"] for t in result["transcript"]}
+        per_backend_transcripts[name] = {
+            (i, t["step"]): t["output"] for i, t in enumerate(result["transcript"])
+        }
 
     step_divergence = {}
-    for step in rune.genome:
-        outputs = [per_backend_transcripts[b][step] for b in backend_names if step in per_backend_transcripts[b]]
+    for i, step in enumerate(rune.genome):
+        key = (i, step)
+        outputs = [per_backend_transcripts[b][key] for b in backend_names if key in per_backend_transcripts[b]]
         if len(outputs) < 2:
-            step_divergence[step] = None
+            step_divergence[key] = None
             continue
         pairwise_similarities = [similarity_fn(a, b) for a, b in itertools.combinations(outputs, 2)]
         avg_similarity = mean(pairwise_similarities)
-        step_divergence[step] = round(1 - avg_similarity, 3)
+        step_divergence[key] = round(1 - avg_similarity, 3)
 
     return step_divergence
 
@@ -124,35 +147,51 @@ def validate(rune, tasks: list[str], backend_names: list[str], use_jaccard: bool
     measurement_method = "lexical_overlap" if use_jaccard else "semantic_similarity"
 
     lint_report = lint(rune)
-    predicted = {s["step"]: s["risk_score"] for s in lint_report["steps"]}
+    # lint_report["steps"] is a list in genome order (see divergence_linter.lint),
+    # so zip with enumerate(rune.genome) to get the same (position, step) keys
+    # used below — this also fixes the same step-name-collision risk that existed
+    # in measure_divergence_for_task: a repeated step name (e.g. multitool.rune's
+    # two "search" steps) would otherwise overwrite itself in a step-name-keyed dict.
+    predicted = {
+        (i, step): lint_report["steps"][i]["risk_score"]
+        for i, step in enumerate(rune.genome)
+    }
 
     measured_per_task = [
         measure_divergence_for_task(rune, task, backend_names, similarity_fn) for task in tasks
     ]
 
-    # Average measured divergence per step across all tasks
+    # Average measured divergence per (position, step) across all tasks
     measured_avg = {}
-    for step in rune.genome:
-        vals = [m[step] for m in measured_per_task if m.get(step) is not None]
-        measured_avg[step] = round(mean(vals), 3) if vals else None
+    for i, step in enumerate(rune.genome):
+        key = (i, step)
+        vals = [m[key] for m in measured_per_task if m.get(key) is not None]
+        measured_avg[key] = round(mean(vals), 3) if vals else None
 
-    steps_with_data = [s for s in rune.genome if measured_avg[s] is not None]
-    pred_series = [predicted[s] for s in steps_with_data]
-    measured_series = [measured_avg[s] for s in steps_with_data]
+    keys_with_data = [(i, s) for i, s in enumerate(rune.genome) if measured_avg[(i, s)] is not None]
+    pred_series = [predicted[k] for k in keys_with_data]
+    measured_series = [measured_avg[k] for k in keys_with_data]
 
     corr = None
-    if len(steps_with_data) >= 2 and len(set(measured_series)) > 1 and len(set(pred_series)) > 1:
+    if len(keys_with_data) >= 2 and len(set(measured_series)) > 1 and len(set(pred_series)) > 1:
         corr = round(correlation(pred_series, measured_series), 3)
+
+    # Human-readable labels for JSON/print output: "search (step 1)" for the
+    # first occurrence, "search (step 3)" for a repeat — keeps the genome
+    # position visible instead of silently hiding which occurrence is which.
+    def label(key):
+        i, step = key
+        return f"{step} (step {i + 1})"
 
     return {
         "species": rune.species,
         "tasks_tested": tasks,
         "backends": backend_names,
         "measurement_method": measurement_method,
-        "predicted_risk": predicted,
-        "measured_divergence": measured_avg,
+        "predicted_risk": {label(k): v for k, v in predicted.items()},
+        "measured_divergence": {label(k): v for k, v in measured_avg.items()},
         "correlation": corr,
-        "interpretation": _interpret(corr, len(steps_with_data)),
+        "interpretation": _interpret(corr, len(keys_with_data)),
     }
 
 
@@ -174,12 +213,12 @@ def print_report(report: dict):
     print(f"Backends: {', '.join(report['backends'])}")
     print(f"Measurement method: {report['measurement_method']}\n")
 
-    print(f"{'Step':<12} {'Predicted':<12} {'Measured':<12}")
+    print(f"{'Step':<20} {'Predicted':<12} {'Measured':<12}")
     for step in report["predicted_risk"]:
         pred = report["predicted_risk"][step]
         meas = report["measured_divergence"][step]
         meas_str = str(meas) if meas is not None else "N/A"
-        print(f"{step:<12} {pred:<12} {meas_str:<12}")
+        print(f"{step:<20} {pred:<12} {meas_str:<12}")
 
     print(f"\nCorrelation (predicted vs measured): {report['correlation']}")
     print(f"Interpretation: {report['interpretation']}")
