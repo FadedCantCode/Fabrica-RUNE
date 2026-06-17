@@ -9,7 +9,7 @@ from typing import List, Dict
 SUPPORTED_SCHEMA_MAJOR = "0"
 
 KNOWN_STEPS = {"search", "analyze", "summarize", "code", "test"}
-KNOWN_CONSTRAINTS = {"cite_sources"}
+KNOWN_CONSTRAINTS = {"cite_sources", "structured_output"}
 KNOWN_BEHAVIOR_KEYS = {"curiosity"}
 
 
