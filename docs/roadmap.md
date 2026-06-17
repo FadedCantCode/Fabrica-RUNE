@@ -34,9 +34,11 @@ one to be working and measured before starting the next.
 - [ ] Test across at least 3 distinct genome shapes (research.rune: 3 positive results,
       correlations 0.719/0.99/0.999. coder.rune: after investigating a real discrepancy
       and fixing a genuine structural gap in the heuristic — see detailed history below
-      — final correlation 0.967, also a positive result. 2/3 done; a third genome shape
-      that exercises parts of the heuristic neither of these two touch (e.g. multiple
-      tool steps, or multiple constraints) is the remaining item.)
+      — final correlation 0.967, also a positive result. multitool.rune: tested
+      2026-06-17, correlation -0.086 — a real negative result with a specific inversion
+      (analyze predicted highest-risk, measured lowest), see detailed result below. 2/3
+      positive so far; investigating whether a structural fix resolves the third before
+      concluding this item is satisfied or revealing a real limitation.)
 - [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
       history. If correlation is weak or negative, say so and revise the heuristic weights
       in `divergence_linter.py`, or scrap the specific signals that don't hold up.
@@ -150,6 +152,53 @@ genome shape, ideally one that exercises a part of the heuristic neither
 `research.rune` nor `coder.rune` has touched (e.g. a genome with more than one tool
 step, or with multiple constraints), is the next concrete step toward fully closing
 that item.
+
+### Recorded result: 2026-06-17, `groq_qwen` vs `mistral`, `multitool.rune`, 12 tasks (v1)
+
+A third genome (`multitool.rune`: search → analyze → search → summarize, two tool
+steps, two constraints — `cite_sources` and a new `structured_output`) was built
+specifically to exercise parts of the heuristic `research.rune` and `coder.rune` never
+touched. Correlation: **-0.086**, essentially no signal, slightly negative.
+
+**Two findings, not one.** First: predicted scores treat both `search` occurrences
+identically (0.375 each, since the heuristic has no position-awareness), but measured
+divergence differed meaningfully between them (0.178 for the first occurrence, 0.264 for
+the second) across the full 12-task run — smaller than the 3-task smoke test's gap
+(0.172 vs 0.352, roughly 2x) but still in the same direction. Plausible mechanism: each
+model's second search reacts to its own already-diverged `analyze` output, so divergence
+compounds with genome position, not just step identity — a real, structural blind spot
+the current heuristic has no way to represent, but the effect may be too small on
+the available data so far to justify a specific numeric fix.
+
+Second, more serious: `analyze` was predicted as clearly highest-risk (0.56) but measured
+as the *lowest* of all four steps (0.208), even below `summarize` (0.215, predicted
+lowest). This is a ranking inversion at the top, not just a magnitude miss, and it held
+in the same direction from the 3-task smoke test through the full 12-task run.
+
+**Working hypothesis, not yet applied:** `multitool.rune` is the first genome with the
+new `structured_output` constraint ("format every step's response using clear
+structure"), which forces every step, including `analyze`, into a rigid output shape
+(headers, lists). `score_step()`'s `constraint_risk` currently only measures constraint
+*coverage* (count of constraints / genome length) — it has no representation of what a
+constraint actually *does*. `structured_output` plausibly suppresses cross-model
+divergence in a step like `analyze` far more directly than `cite_sources` does, by
+forcing both models toward similarly-shaped output (lists, headers) regardless of how
+differently they actually reason — but the current math treats every constraint as
+equally generic. If true, the fix is structural: let `structured_output` specifically
+lower `specificity_risk`, not just contribute to coverage. Not yet implemented — see the
+next section for the result of testing this hypothesis.
+
+### Fix attempt: format-anchoring constraint suppression (2026-06-17)
+
+Added `FORMAT_ANCHORING_CONSTRAINTS = {"structured_output": 0.7}` to
+`divergence_linter.py` — a multiplicative suppression factor applied to a step's
+`specificity_risk` when the rune declares a constraint that anchors output format.
+`cite_sources` is intentionally excluded, since it constrains content attribution, not
+output shape. Confirmed `research.rune` and `coder.rune`'s predictions are completely
+unchanged (neither uses `structured_output`) before considering this fix valid.
+`multitool.rune`'s new predicted scores: `analyze` 0.56 → 0.392, `search` (both
+occurrences) 0.375 → 0.285, `summarize` 0.21 → 0.147 — `analyze` still ranks highest,
+but by a much smaller margin, closer to what the measured data actually showed.
 
 ## Stage 2 — Spec maturity
 
