@@ -69,26 +69,25 @@ SUMMARIZE_PRECEDED_BY_SPECIFICITY = {
 }
 
 # Some constraints anchor a step's OUTPUT FORMAT directly (e.g. "use headers
-# and lists"), which plausibly suppresses cross-model divergence more directly
-# than a content-behavior constraint like cite_sources does — forcing two
-# models toward a similarly-shaped output regardless of how differently they
-# actually reason. Discovered 2026-06-17: multitool.rune (the first genome
-# with structured_output) measured "analyze" as the LOWEST-divergence step
-# despite the heuristic predicting it as clearly highest (0.56) — a ranking
-# inversion, not just a magnitude miss, that held from a 3-task smoke test
-# through the full 12-task run. The pre-fix heuristic had no mechanism for a
-# constraint to actually affect specificity_risk; constraint_risk only ever
-# measured constraint *coverage* (count / genome length), treating
-# cite_sources and structured_output as functionally identical. This table
-# is the fix: a multiplicative suppression factor applied to specificity_risk
-# for constraints that anchor format. cite_sources is intentionally absent —
-# it doesn't constrain output shape, just whether claims get attributed, so
-# it shouldn't suppress specificity_risk the way structured_output does. See
-# docs/roadmap.md Stage 1 for the full discrepancy history and the result of
-# testing this fix.
-FORMAT_ANCHORING_CONSTRAINTS = {
-    "structured_output": 0.7,  # multiply specificity_risk by this factor
-}
+# and lists"), which was hypothesized to suppress cross-model divergence more
+# directly than a content-behavior constraint like cite_sources does.
+#
+# STATUS: tried and reverted, 2026-06-17. multitool.rune (the first genome
+# with structured_output) initially measured "analyze" as the LOWEST-
+# divergence step despite the heuristic predicting it highest (0.56) — a
+# ranking inversion. Adding a uniform 0.7 suppression factor for
+# structured_output did fix analyze's prediction (it dropped to match the
+# low measured value), but made the overall correlation WORSE (-0.086 ->
+# -0.604), because the same factor applied to every step, and "summarize"
+# went from correctly-low to a new, different inversion (predicted lowest,
+# measured second-highest). The hypothesis that structured_output suppresses
+# divergence appears genuinely correct for analyze specifically, but wrong
+# as a uniform per-constraint rule across all step types. Left here, inert
+# (empty dict), as a record of what was tried and why it didn't generalize
+# — re-enabling this needs a step-aware version, not a blanket multiplier,
+# and more data than one 12-task run to justify the specific values. See
+# docs/roadmap.md Stage 1 for the full v1/v2 result history.
+FORMAT_ANCHORING_CONSTRAINTS = {}
 
 TOOL_STEPS = {"search"}  # steps in runtime.py that reference a tool
 
@@ -100,7 +99,7 @@ def _resolve_specificity(step: str, preceding_step: str | None, constraints: lis
        (currently only "summarize" — see SUMMARIZE_PRECEDED_BY_SPECIFICITY).
     2. Constraints that anchor output format, which suppress the step's
        effective specificity_risk regardless of step identity (see
-       FORMAT_ANCHORING_CONSTRAINTS above).
+       FORMAT_ANCHORING_CONSTRAINTS above — currently empty/inert).
     """
     if step == "summarize" and preceding_step in SUMMARIZE_PRECEDED_BY_SPECIFICITY:
         base = SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
