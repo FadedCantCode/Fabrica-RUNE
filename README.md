@@ -48,10 +48,14 @@ python runtime.py ../examples/research.rune --task "Who is Alan Turing?" --backe
 ```
 
 Backends currently supported: `openai`, `anthropic`, `ollama` (local), `gemini`, `groq`,
-`groq_large` (same as `groq`, larger model — see note below), `openrouter`, `deepseek`.
-Not every backend's free tier behaves the same way — some cap requests per day, some
-require a funded account balance even for "free" models. See each adapter's docstring in
-[`reference-implementation/backends/`](reference-implementation/backends/) for specifics.
+`groq_large` (same as `groq`, larger Llama model), `groq_qwen` (Qwen3-32B on Groq),
+`openrouter`, `deepseek`, `nim` (NVIDIA NIM, Llama), `nim_deepseek` (NVIDIA NIM, DeepSeek),
+`cerebras` (gpt-oss-120b), `mistral` (Mistral Small). Not every backend's free tier
+behaves the same way — some cap requests per day, some require a funded account balance
+even for "free" models, some rate-limit unpredictably under real load. See each
+adapter's docstring in
+[`reference-implementation/backends/`](reference-implementation/backends/) for specifics
+and known caveats per backend.
 
 Each run prints the same plan structure (`search → analyze → summarize`) executed by a
 different model. See [`evaluation.py`](reference-implementation/evaluation.py) to run all
@@ -97,9 +101,18 @@ hardware stacks — produced a correlation of **0.99**, with measured divergence
 meaningfully across genome steps rather than clustering tightly. This is the stronger of
 the two results so far, though Cerebras's free tier was visibly rate-limited throughout
 the run (every task hit at least one 429 before succeeding via retry), so some of that
-divergence may reflect request throttling rather than pure model behavior. See
-[`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the full caveats on both runs and the
-still-pending cleaner cross-provider validation.
+divergence may reflect request throttling rather than pure model behavior.
+
+**Third recorded data point (2026-06-17), the cleanest so far:** a 12-task run comparing
+`groq_qwen` (Alibaba's Qwen3-32B, on Groq) against `mistral` (Mistral Small, on Mistral
+AI's own infrastructure) produced a correlation of **0.999**, with measured divergence
+spread meaningfully across steps (0.802–0.853) and zero retries or rate-limit
+interference during the run. Two different labs, two different cloud providers, nothing
+in the run's execution casts doubt on whether the divergence reflects genuine model
+behavior. This is the first result that satisfies the "clean cross-provider pairing"
+bar this project has been working toward. See [`docs/roadmap.md`](docs/roadmap.md)
+Stage 1 for the full detail on all three results and what's still left to validate
+(more genomes, more tasks, a better divergence-measurement proxy than lexical overlap).
 
 ## Why
 
