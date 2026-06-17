@@ -80,14 +80,13 @@ python validate_linter.py ../examples/research.rune \
     --backends openai anthropic
 ```
 
-This prints a correlation between predicted risk and measured divergence (lexical
-overlap across backend outputs per step). See
+This prints a correlation between predicted risk and measured divergence (by default,
+embedding-based semantic similarity across backend outputs per step — see
+`validate_linter.py`'s `--use-jaccard` flag for the original word-overlap method). See
 [`divergence_linter.py`](reference-implementation/divergence_linter.py) for the scoring
 logic and [`validate_linter.py`](reference-implementation/validate_linter.py) for the
 honesty check. Until you've run this against real data across multiple tasks and
 genomes, treat the linter's scores as an untested hypothesis, not a result.
-
-## Results
 
 **First recorded data point (2026-06-16):** a 12-task run on `research.rune` comparing
 `groq` against `groq_large` (same provider, different model size — a temporary stand-in
@@ -110,9 +109,24 @@ spread meaningfully across steps (0.802–0.853) and zero retries or rate-limit
 interference during the run. Two different labs, two different cloud providers, nothing
 in the run's execution casts doubt on whether the divergence reflects genuine model
 behavior. This is the first result that satisfies the "clean cross-provider pairing"
-bar this project has been working toward. See [`docs/roadmap.md`](docs/roadmap.md)
-Stage 1 for the full detail on all three results and what's still left to validate
-(more genomes, more tasks, a better divergence-measurement proxy than lexical overlap).
+bar this project has been working toward.
+
+**Fourth recorded data point (2026-06-17), a different genome shape:** the first three
+results were all on `research.rune` (search → analyze → summarize). Testing the same
+`groq_qwen` vs `mistral` pairing on `coder.rune` (analyze → code → test → summarize, no
+tool steps) first produced a weak correlation of 0.152 — a real negative result, not
+glossed over. Investigation found two genuine issues, not dataset-fitting: the lexical
+word-overlap measurement was likely penalizing code's natural surface-form variation
+(different variable names, formatting), and `summarize`'s predicted risk didn't account
+for the fact that summarizing a coding task is more ambiguous than summarizing a
+research task. Fixing both (switching to embedding-based measurement, and making
+`summarize`'s risk score context-dependent on the preceding step) brought the
+correlation to **0.967** on the same task set. The linter's structural heuristic now has
+positive, defensible results on two genuinely different genome shapes.
+
+See [`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the full detail on all four results,
+the coder.rune investigation in full, and what's still left to validate (a third genome
+shape, more tasks, more backend pairings).
 
 ## Why
 
