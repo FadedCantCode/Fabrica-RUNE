@@ -19,7 +19,7 @@ from backends.openai_backend import OpenAIBackend
 from backends.anthropic_backend import AnthropicBackend
 from backends.ollama_backend import OllamaBackend
 from backends.gemini_backend import GeminiBackend
-from backends.groq_backend import GroqBackend, GroqLargeBackend
+from backends.groq_backend import GroqBackend, GroqLargeBackend, GroqQwenBackend
 from backends.openrouter_backend import OpenRouterBackend
 from backends.deepseek_backend import DeepSeekBackend
 from backends.nim_backend import NIMBackend, NIMDeepSeekBackend
@@ -33,6 +33,7 @@ BACKEND_REGISTRY = {
     "gemini": GeminiBackend,
     "groq": GroqBackend,
     "groq_large": GroqLargeBackend,
+    "groq_qwen": GroqQwenBackend
     "openrouter": OpenRouterBackend,
     "deepseek": DeepSeekBackend,
     "nim": NIMBackend,
@@ -48,6 +49,7 @@ BACKEND_CALL_DELAYS = {
     "gemini": 7.0,
     "groq": 2.0,
     "groq_large": 2.0,
+    "groq_qwen": 2.0,
     "openrouter": 3.0,
     "deepseek": 1.0,
     "nim": 2.0,
