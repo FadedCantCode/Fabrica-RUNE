@@ -24,6 +24,7 @@ from backends.openrouter_backend import OpenRouterBackend
 from backends.deepseek_backend import DeepSeekBackend
 from backends.nim_backend import NIMBackend, NIMDeepSeekBackend
 from backends.cerebras_backend import CerebrasBackend
+from backends.mistral_backend import MistralBackend
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ BACKEND_REGISTRY = {
     "nim": NIMBackend,
     "nim_deepseek": NIMDeepSeekBackend,
     "cerebras": CerebrasBackend,
+    "mistral": MistralBackend,
 }
 
 # Free-tier rate limits vary a lot per provider. Gemini Flash's free tier
@@ -57,6 +59,7 @@ BACKEND_CALL_DELAYS = {
     "nim": 2.0,
     "nim_deepseek": 2.0,
     "cerebras": 1.0,
+    "mistral": 1.0,
     "openai": 1.0,
     "anthropic": 1.0,
     "ollama": 0.0,  # local, no rate limit
