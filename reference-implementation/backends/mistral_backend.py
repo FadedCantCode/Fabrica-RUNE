@@ -24,8 +24,15 @@ leakage into divergence measurements that was found and fixed in
 groq_backend.py's GroqQwenBackend earlier today — don't wait to
 discover the same bug twice.
 
-Includes the same retry-with-backoff as the other free-tier backends
-for transient server errors (429, 500, 503).
+Includes retry-with-backoff for transient server errors (429, 500, 503),
+plus an explicit retry path for connection-level read timeouts (same
+pattern as nim_backend.py) — confirmed necessary 2026-06-17 when a real
+run against multitool.rune (a heavier genome: two "search" steps plus
+analyze accumulate more context per call than research.rune/coder.rune
+ever did) hit a hard ReadTimeout that crashed the run immediately,
+since a Timeout exception isn't an HTTP status code and bypassed the
+status-code retry check entirely. Timeout also raised 60s -> 90s, since
+60s wasn't enough margin for this genome's longer accumulated prompts.
 """
 import os
 import re
@@ -36,6 +43,7 @@ from .base import Backend
 RETRYABLE_STATUS_CODES = {429, 500, 503}
 MAX_RETRIES = 4
 BASE_BACKOFF_SECONDS = 2.0
+REQUEST_TIMEOUT_SECONDS = 90
 
 
 class MistralBackend(Backend):
@@ -62,15 +70,31 @@ class MistralBackend(Backend):
 
         last_error = None
         for attempt in range(MAX_RETRIES + 1):
-            resp = requests.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=60,
-            )
+            try:
+                resp = requests.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                )
+            except requests.exceptions.Timeout as e:
+                if attempt < MAX_RETRIES:
+                    wait = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    print(
+                        f"[mistral_backend] read timeout on attempt {attempt + 1}, "
+                        f"retrying in {wait:.0f}s..."
+                    )
+                    time.sleep(wait)
+                    last_error = e
+                    continue
+                raise RuntimeError(
+                    f"Mistral request timed out after {MAX_RETRIES + 1} attempts "
+                    f"({REQUEST_TIMEOUT_SECONDS}s each). The model may be under heavy "
+                    f"load, or the prompt may be unusually long for this genome."
+                ) from e
 
             if resp.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
                 wait = BASE_BACKOFF_SECONDS * (2 ** attempt)
