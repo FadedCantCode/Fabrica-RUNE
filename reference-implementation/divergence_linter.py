@@ -156,7 +156,37 @@ FORMAT_ANCHORING_CONSTRAINTS = {
 }
 
 
-def _resolve_specificity(step: str, preceding_step: str | None, constraints: list[str]) -> float:
+# A repeated step (the same step name appearing more than once in a genome,
+# e.g. multitool.rune's search -> analyze -> search -> summarize) shows
+# higher measured divergence on its LATER occurrences than its first,
+# independent of which constraints are present.
+#
+# CONFIRMED on two independent genomes before this code was written:
+#   multitool.rune (v1, with structured_output): search step1 0.178,
+#     step3 0.264 (ratio 1.483x)
+#   multitool_v2.rune (no structured_output): search step1 0.156,
+#     step3 0.26 (ratio 1.667x)
+# Both runs show the same direction at a similar magnitude (average ratio
+# 1.575x) despite differing in every other respect (one has
+# structured_output, one doesn't). Plausible mechanism: a model's second
+# occurrence of a step reacts to its own already-diverged output from
+# earlier steps, so divergence compounds with position rather than
+# resetting at each occurrence of the same step type.
+#
+# As with FORMAT_ANCHORING_CONSTRAINTS, this is NOT a fit to the measured
+# 1.575x average — using that value directly would be the same
+# curve-fitting risk flagged repeatedly in docs/roadmap.md. 1.4 is a
+# deliberately rounded, slightly conservative value that preserves the
+# confirmed direction and rough scale from two 12-task runs without
+# overclaiming precision. Only confirmed for "search" so far; applied here
+# to any repeated step by default, since the underlying mechanism (a model
+# reacting to its own prior divergence) plausibly generalizes beyond one
+# step type, but this generalization itself is untested and should be
+# revisited if a repeated non-search step is ever measured.
+REPETITION_AMPLIFICATION = 1.4  # per repeat, multiplicative
+
+
+def _resolve_specificity(step: str, preceding_step: str | None, constraints: list[str], repetition_index: int = 0) -> float:
     """
     Look up specificity risk for a step, accounting for:
     1. Context where the step's actual ambiguity depends on what preceded it
@@ -167,6 +197,10 @@ def _resolve_specificity(step: str, preceding_step: str | None, constraints: lis
        this can push specificity_risk up (for steps whose natural output is
        far from prose, like "code") or leave it unchanged (for steps whose
        natural output already is prose, like "analyze").
+    3. Position within the genome, for steps that repeat (see
+       REPETITION_AMPLIFICATION above). repetition_index is 0 for a step's
+       first occurrence (no amplification) and increases by 1 for each
+       later occurrence of the same step name.
     """
     if step == "summarize" and preceding_step in SUMMARIZE_PRECEDED_BY_SPECIFICITY:
         base = SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
@@ -180,19 +214,28 @@ def _resolve_specificity(step: str, preceding_step: str | None, constraints: lis
         # treated as suppressed by accident.
         base *= step_factors.get(step, 1.0)
 
+    if repetition_index > 0:
+        base *= REPETITION_AMPLIFICATION ** repetition_index
+
     return round(min(base, 1.0), 3)
 
 
-def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
+def score_step(step: str, rune, preceding_step: str | None = None, repetition_index: int = 0) -> dict:
     """
     Return a structural divergence-risk score in [0, 1] for one step.
 
     preceding_step: the genome step immediately before this one, or None if
-    this is the first step. Currently only affects "summarize" scoring —
-    see _resolve_specificity. Optional and defaults to None so existing
-    callers (and any external code importing this function) keep working
-    unchanged; lint() below always passes it correctly for steps within a
-    real genome.
+    this is the first step. Only affects "summarize" scoring — see
+    _resolve_specificity. Optional and defaults to None so existing callers
+    (and any external code importing this function) keep working unchanged;
+    lint() below always passes it correctly for steps within a real genome.
+
+    repetition_index: how many times this exact step name has already
+    appeared earlier in the genome (0 for the first occurrence, 1 for the
+    second, etc). Affects scoring via REPETITION_AMPLIFICATION — see
+    _resolve_specificity. Optional and defaults to 0 for the same backward-
+    compatibility reason as preceding_step; lint() always passes the real
+    value.
     """
     # Defensive: rune_loader.py currently always coerces constraints to a
     # list (never None), but guard here anyway so a future loader change
@@ -200,7 +243,7 @@ def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
     constraints = rune.constraints if rune.constraints is not None else []
     genome = rune.genome if rune.genome is not None else []
 
-    specificity_risk = _resolve_specificity(step, preceding_step, constraints)
+    specificity_risk = _resolve_specificity(step, preceding_step, constraints, repetition_index)
 
     is_tool_step = step in TOOL_STEPS
     if is_tool_step:
@@ -250,10 +293,19 @@ def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
 
 def lint(rune) -> dict:
     genome = rune.genome if rune.genome is not None else []
-    step_scores = [
-        score_step(step, rune, preceding_step=(genome[i - 1] if i > 0 else None))
-        for i, step in enumerate(genome)
-    ]
+    seen_counts: dict[str, int] = {}
+    step_scores = []
+    for i, step in enumerate(genome):
+        repetition_index = seen_counts.get(step, 0)
+        step_scores.append(
+            score_step(
+                step,
+                rune,
+                preceding_step=(genome[i - 1] if i > 0 else None),
+                repetition_index=repetition_index,
+            )
+        )
+        seen_counts[step] = repetition_index + 1
     overall = round(sum(s["risk_score"] for s in step_scores) / len(step_scores), 3) if step_scores else 0.0
 
     return {
