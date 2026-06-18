@@ -37,13 +37,16 @@ one to be working and measured before starting the next.
 - [ ] Test across at least 3 distinct genome shapes (research.rune: 3 positive results,
       correlations 0.719/0.99/0.999. coder.rune: after investigating a real discrepancy
       and fixing a genuine structural gap in the heuristic — see detailed history below
-      — final correlation 0.967, also a positive result. multitool.rune: tested
-      2026-06-17, v1 correlation -0.086; a fix attempt (format-anchoring constraint
-      suppression) made it worse, -0.604 — see detailed history below. Honest status:
-      2/3 genome shapes positively validated, 1 genuinely unresolved. This item is not
-      satisfied yet; multitool.rune revealed real structural gaps — position-dependent
-      divergence for repeated steps, non-uniform constraint effects — that need more
-      data before a real fix, not another guess, can be justified.)
+      — final correlation 0.967, also a positive result. multitool.rune family: v1
+      correlation -0.086, a fix attempt made it worse (-0.604, reverted), and an isolated
+      follow-up (multitool_v2.rune, no structured_output) confirmed the position effect
+      is real and not a constraint artifact (-0.066, same weak correlation, but the
+      search-step-1-vs-step-3 divergence gap persisted at the same magnitude) — see
+      detailed history below. Honest status: 2/3 genome shapes positively validated, 1
+      family genuinely unresolved but now with two repeated, real, separated findings
+      — position-dependent divergence, and an analyze-specific constraint-suppression
+      effect — that need a real heuristic fix, not another guess, before this item can
+      be called satisfied.)
 
 ### Recorded result: 2026-06-16, `groq` vs `groq_large`, `research.rune`, 12 tasks
 
@@ -344,6 +347,53 @@ should be stated explicitly as the goal, not stumbled into accidentally).
 
 Do not run a third combined experiment on this question before these two isolated ones
 exist — that would repeat the same mistake this section documents.
+
+### Recorded result: 2026-06-18, `groq_qwen` vs `mistral`, `multitool_v2.rune`, 12 tasks (position effect, isolated)
+
+`multitool_v2.rune` is identical to `multitool.rune` (search → analyze → search →
+summarize) but with only `cite_sources` — no `structured_output` — to isolate the
+position effect from the constraint effect per the methodological rule above.
+Correlation: **-0.066**, still weak/negative, same magnitude as `multitool.rune`'s v1
+result (-0.086). This was expected: the heuristic itself wasn't touched for this run,
+only the genome, so no correlation improvement was predicted going in. The point of
+this run was diagnostic, not a fix attempt.
+
+**Position effect: confirmed, not a constraint artifact.** `search (step 1)` measured
+0.156, `search (step 3)` measured 0.26 — a ~1.7x gap, closely matching `multitool.rune`
+v1's ~1.5x gap (0.178 vs 0.264) in the same direction, now with `structured_output`
+completely removed from the picture. This is the second independent genome to show the
+same pattern: a repeated tool step measures higher divergence later in the genome than
+earlier, regardless of which constraints are present. This is now real, repeated
+evidence — not yet enough to justify a specific numeric fix (still only two genomes,
+12 tasks each), but enough to treat the underlying hypothesis (divergence compounds
+with position, since each model's later steps react to its own already-diverged earlier
+output) as a credible, falsifiable claim worth testing further rather than open
+speculation.
+
+**Constraint-on-`analyze` hypothesis: gained supporting evidence.** In `multitool.rune`
+v1 (with `structured_output`), `analyze` measured as the *lowest*-divergence step
+(0.208) despite being predicted highest. Here, with `structured_output` removed,
+`analyze` measured 0.223 — still below its prediction, but no longer the clear lowest;
+it now sits in the middle of the pack alongside `summarize` (0.233), rather than at the
+bottom. That's the direction the `structured_output`-suppresses-`analyze` hypothesis
+predicts: remove the constraint, `analyze`'s relative divergence should creep back up
+toward (though not necessarily reach) its prediction, and it did. Two data points
+pointing the same direction is suggestive, not proof, but it's a second, independent
+genome supporting the same specific mechanism.
+
+**Still unexplained:** `summarize`'s instability under `structured_output` (predicted
+lowest, measured second-highest in `multitool.rune` v2) hasn't been tested in isolation
+from the position effect or from `analyze`'s behavior — that requires the second
+isolated experiment from the methodological rule above (a genome with
+`structured_output` and no repeated steps), still not yet built.
+
+**Status: two real, separate findings now have repeated evidence; no new fix has been
+attempted on either.** The honest next step is either (a) building the
+constraint-effect-isolated genome to get a clean read on `structured_output` without any
+position confound at all, or (b) accepting these two findings as the project's two
+clearest open limitations and moving forward on a different priority (sample size,
+cross-pairing validation) while documenting these as known, unresolved gaps rather than
+chasing a third fix attempt on limited data.
 
 ## Stage 2 — Spec maturity
 
