@@ -128,6 +128,24 @@ See [`docs/roadmap.md`](docs/roadmap.md) Stage 1 for the full detail on all four
 the coder.rune investigation in full, and what's still left to validate (a third genome
 shape, more tasks, more backend pairings).
 
+### Structural confidence estimator (DOT)
+
+`dot.py` is a separate, smaller piece. It does not predict a divergence risk score.
+It answers a narrower question: how structurally similar is a new genome to the
+shapes already validated in [`docs/roadmap.md`](docs/roadmap.md), and how much
+should that similarity inform trust in the linter's prediction for it. With only a
+handful of validated genomes so far, this is implemented as nearest neighbor distance
+over structural features (step count, repeated steps, declared constraints), not a
+trained model. Run its built-in demo against the genomes in `examples/`:
+
+```bash
+cd reference-implementation
+python dot.py
+```
+
+Not yet wired into `divergence_linter.py`. See `docs/roadmap.md`'s Stage 1 closing
+notes and the DOT format mismatch entry for current status and known limitations.
+
 ## Why
 
 Most agent frameworks couple the agent's behavior definition to a specific model's prompt
@@ -169,6 +187,7 @@ RUNE/
     ├── evaluation.py
     ├── divergence_linter.py
     ├── validate_linter.py
+    ├── dot.py
     ├── backends/
     │   ├── base.py
     │   ├── openai_backend.py
