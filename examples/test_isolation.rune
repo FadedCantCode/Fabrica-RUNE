@@ -1,0 +1,32 @@
+species: test_isolation
+version: "0.1.0"
+description: >
+  Built 2026-06-18 to replicate test's amplification claim from
+  coder_structured.rune independently of code. In coder_structured.rune,
+  test always sat adjacent to code (analyze -> code -> test -> summarize),
+  so its measured ~1.9x amplification under structured_output could in
+  principle have been influenced by that adjacency rather than being a
+  property of test itself. This genome pairs test with search and analyze
+  instead, both confirmed prose-natural and flat under structured_output
+  in two prior genomes, and deliberately excludes code entirely. If test
+  amplifies here too, that's a real, independent second confirmation,
+  matching how code's claim was confirmed twice before being trusted. If
+  test stays flat here, the original coder_structured.rune reading was
+  likely an artifact of position or adjacency, not a property of test
+  itself, and FORMAT_ANCHORING_CONSTRAINTS's test factor should be
+  reverted to 1.0 pending further investigation. No repeated steps, no
+  position confound.
+
+genome:
+  - search
+  - test
+  - analyze
+
+tools:
+  - search
+
+constraints:
+  - structured_output
+
+behavior:
+  curiosity: 0.4
