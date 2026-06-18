@@ -1,0 +1,30 @@
+species: coder_structured
+version: "0.1.0"
+description: >
+  Identical genome shape to coder.rune (analyze -> code -> test ->
+  summarize, no repeated steps, no tool steps), but with structured_output
+  added alongside cite_sources. Built 2026-06-18 to isolate the
+  constraint-effect hypothesis from multitool.rune/multitool_v2.rune
+  (structured_output suppresses analyze's divergence but may not affect
+  summarize the same way) cleanly, with zero position confound — this
+  genome has no repeated steps at all. Designed as a direct, paired
+  before/after comparison against coder.rune's existing validated
+  results: same genome shape, same step instructions, same task list,
+  same backend pairing, the only variable that changes is the presence
+  of structured_output. See docs/roadmap.md Stage 1, "Methodological
+  rule" section, for why this isolation matters.
+
+genome:
+  - analyze
+  - code
+  - test
+  - summarize
+
+tools: []
+
+constraints:
+  - cite_sources
+  - structured_output
+
+behavior:
+  curiosity: 0.3
