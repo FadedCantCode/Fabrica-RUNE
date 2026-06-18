@@ -1,0 +1,31 @@
+species: format_distance_test
+version: "0.1.0"
+description: >
+  Built 2026-06-18 to test the "natural-format-distance" hypothesis from
+  coder_structured.rune: that structured_output's effect on divergence
+  depends on how far a step's natural unconstrained output format is from
+  prose, rather than depending on the step's specific identity (e.g.
+  "analyze" vs "code"). Combines code (confirmed non-prose-natural, large
+  effect in coder_structured.rune) with search and analyze (two different
+  prose-natural steps; analyze was confirmed flat in coder_structured.rune,
+  search has never been tested under structured_output at all). If the
+  hypothesis holds, code should again show a large effect while both
+  search and analyze stay flat, even though search is a structurally
+  different step from anything tested under this constraint so far. If
+  search instead shows a large effect, the hypothesis is wrong and the
+  real driver is something else entirely. No repeated steps — keeps this
+  experiment isolated from the position effect.
+
+genome:
+  - search
+  - analyze
+  - code
+
+tools:
+  - search
+
+constraints:
+  - structured_output
+
+behavior:
+  curiosity: 0.5
