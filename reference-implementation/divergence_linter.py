@@ -136,16 +136,22 @@ FORMAT_ANCHORING_CONSTRAINTS = {
                              # erasing the intended code > test ordering. 2.0 preserves
                              # direction and relative ordering without overclaiming
                              # exactness or hitting the cap.
-        "test":      1.2,   # non-prose-natural (procedural trace); confirmed amplified
-                             # ~1.9x in coder_structured.rune only (not yet replicated in
-                             # a second genome the way code's effect was). test's base
-                             # STEP_SPECIFICITY (0.75) is already much higher than code's
-                             # (0.5), so a smaller factor here still produces a higher
-                             # absolute specificity_risk than an unamplified step would;
-                             # 1.2 was chosen specifically to keep test's result below
-                             # code's after multiplication (0.75*1.2=0.9 vs 0.5*2.0=1.0),
-                             # matching the data's relative ordering, rather than fitting
-                             # the measured 1.9x ratio directly.
+        "test":      1.05,  # REVISED 2026-06-18 (down from 1.2). Original ~1.9x
+                             # amplification was measured in coder_structured.rune,
+                             # where test always sat adjacent to code (analyze -> code
+                             # -> test -> summarize). test_isolation.rune (search ->
+                             # test -> analyze, no code anywhere) tested whether that
+                             # amplification was a property of test itself or an
+                             # artifact of code-adjacency. Result: test's amplification
+                             # mostly evaporated (measured only 5% above analyze, not
+                             # the large gap seen alongside code), confirming the
+                             # adjacency-artifact suspicion. 1.05 reflects this second,
+                             # contradicting data point rather than the original
+                             # reading alone; unlike code (confirmed at consistent
+                             # magnitude across two unrelated genomes), test now has
+                             # one strong reading and one near-null reading, so treating
+                             # it as close to prose-natural is the more honest position
+                             # until a third isolated test says otherwise.
     }
 }
 
