@@ -398,7 +398,7 @@ chasing a third fix attempt on limited data.
 ### NULL RUNE baseline added (2026-06-18)
 
 Added `examples/null_baseline.rune`: a single `summarize` step, no tools, no
-constraints, intended to measure a "divergence floor" — how much disagreement exists
+constraints, intended to measure a "divergence floor". How much disagreement exists
 between models even when the genome imposes essentially no structure.
 
 **Honest tradeoff, documented in the file itself, not just here:** this reuses the
