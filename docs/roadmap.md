@@ -571,6 +571,50 @@ flagged repeatedly in this document. But it does justify treating "format-distan
 prose" as the leading explanation for `structured_output`'s effect, ahead of any
 step-identity-specific theory, when designing the next fix attempt.
 
+### Fix attempt 3: format-distance-aware constraint amplification (2026-06-18)
+
+Unlike the first two attempts, this one was written only after two independent
+confirmed experiments existed (`coder_structured.rune`, `format_distance_test.rune`),
+not in response to a single result. `FORMAT_ANCHORING_CONSTRAINTS` changed from a flat
+per-constraint suppression factor to a step-aware dict: `structured_output` now leaves
+prose-natural steps (`search`, `analyze`, `summarize`) unchanged (factor 1.0, confirmed
+flat in both genomes) and amplifies non-prose-natural steps (`code` factor 2.0, `test`
+factor 1.2, reflecting the confirmed ordering that `code` amplified more than `test`
+did, ~3.4-3.6x vs ~1.9x measured). The exact factors (2.0, 1.2) are deliberately rounded
+and conservative, not a fit to the measured ratios; using the measured values directly
+would have repeated the curve-fitting mistake flagged earlier, and an earlier draft of
+this fix using larger factors clipped against the 0.0-1.0 `specificity_risk` ceiling,
+silently erasing the intended `code` > `test` ordering, a real bug caught and corrected
+before this was finalized.
+
+`_resolve_specificity()` was updated to look up step-specific factors instead of one
+global factor, defaulting any step not explicitly listed to 1.0 (no effect) rather than
+silently skipping it, and the result is now capped at 1.0 to respect
+`specificity_risk`'s documented bounds. Confirmed `research.rune`, `coder.rune`, and
+`multitool.rune`'s predictions are all byte-for-byte unchanged (none of their `code`/
+`test` steps combine with `structured_output` in a way the old code path didn't already
+handle, and `multitool.rune`'s `search`/`analyze`/`summarize` steps all resolve to
+factor 1.0) before considering this fix valid.
+
+**Recomputed against already-measured data (not a new run, just re-scoring existing
+results with the new code):** `coder_structured.rune`'s correlation moves from -0.419 to
+**0.844**; `format_distance_test.rune`'s moves from -0.452 to **0.886**. Both
+improvements are substantial and happened on data the factors weren't fit to directly
+(the factors are rounded approximations of the measured ratios, not the ratios
+themselves), which is a meaningfully different and more defensible situation than fix
+attempt 1, where a single factor was chosen and immediately broke a different step on
+the same dataset it was tested against.
+
+**Honest caveats, not yet resolved:** `test`'s amplification is confirmed in only one
+genome (`coder_structured.rune`), not independently replicated the way `code`'s was;
+`summarize`'s prose-natural classification under `structured_output` is reasoning by
+analogy, not yet directly isolated and measured on its own. This fix should be
+considered provisionally validated on the data that already exists, not finally proven;
+the next real test is running it forward on a genome it hasn't seen yet (e.g. a fresh
+run of `multitool.rune` itself, which has `structured_output` plus a position effect
+this fix doesn't address, to see whether the two known gaps interact or remain cleanly
+separable).
+
 ## Stage 2: Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
