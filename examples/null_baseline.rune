@@ -1,0 +1,31 @@
+species: null_baseline
+version: "0.1.0"
+description: >
+  Minimal baseline genome: a single step, no tools, no constraints.
+  Built 2026-06-18 to measure the divergence floor — how much disagreement
+  exists between models even when the genome imposes no structure at all.
+  Any other genome's measured divergence should be read relative to this
+  floor, not in isolation.
+
+  HONEST CAVEAT (engineering convenience, not a true causal zero-point):
+  this reuses the existing "summarize" step rather than introducing a new,
+  semantically neutral step type. "Summarize" carries real task semantics
+  of its own — compression, abstraction, rephrasing — which are not
+  "no structure," they're a specific kind of structure. A genuinely
+  neutral baseline would need a new step type with no inherent
+  transformation bias (e.g. "direct_response"), which would require
+  extending KNOWN_STEPS in rune_loader.py and STEP_INSTRUCTIONS in
+  runtime.py — real engineering cost, deferred for now. Treat this
+  baseline's measured divergence as a rough floor estimate, contaminated
+  by summarize's own task semantics, not a precise zero-point. See
+  docs/roadmap.md Stage 1 for the full reasoning behind this tradeoff.
+
+genome:
+  - summarize
+
+tools: []
+
+constraints: []
+
+behavior:
+  curiosity: 0.5
