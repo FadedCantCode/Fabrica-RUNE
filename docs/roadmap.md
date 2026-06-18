@@ -755,6 +755,11 @@ Limitation (b) is unchanged: with only 2 validated examples, _feature_scale()'s 
 
 ## Stage 2: Spec maturity
 
+(Distinct from the "scale up validated sample size" next step recommended in the
+Stage 1 closing note above, which targets running `research.rune`/`coder.rune` at
+24-36 tasks with a second backend pairing. That work is not a checklist item in this
+section and remains unscheduled relative to the items below.)
+
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
 - [ ] Validation tool: lint a `.rune` file for malformed genome/tool references before run
 - [ ] Composability: merge two `.rune` files into a third (e.g. research + coder → research-coder)
@@ -772,6 +777,16 @@ and none of it should be referenced as a current feature:
   unless and until something more biologically-structured is actually built and justified.)
 - Cross-model fine-tuning of constraint adherence (e.g. a backend that ignores
   `cite_sources`; can the runtime detect and correct this automatically?)
+- Productization via Vercel's eve, an open source agent framework: eve agents define
+  tools as one file per tool under `agent/tools/`, each exporting `defineTool({
+  description, inputSchema, execute })`. The file name maps to the tool name and the
+  `description` field is a plain string, both of which line up cleanly with a genome
+  step's description in this project's terms. Confirmed 2026-06-18 against
+  eve-main.zip's actual source (e.g. the weather-agent fixture's `get_weather.ts`), not
+  just the framework's documentation. `connections/` (eve's MCP integration) is
+  deliberately out of scope for any conversion: a converter would warn on its presence
+  rather than attempt to translate it. No conversion script exists yet; this is a
+  confirmed target, not a built integration.
 
 ## Explicitly out of scope indefinitely
 
