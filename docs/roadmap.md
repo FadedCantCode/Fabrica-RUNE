@@ -3,7 +3,6 @@
 Staged by what's actually demonstrable, not by ambition. Each stage requires the previous
 one to be working and measured before starting the next.
 
-
 ## Stage 0 — Done in this repo
 
 - [x] `.rune` YAML schema (genome, tools, constraints)
@@ -23,6 +22,9 @@ one to be working and measured before starting the next.
       Done 2026-06-17: `groq_qwen` (Alibaba's Qwen3-32B, on Groq) vs `mistral` (Mistral
       Small, on Mistral's own infrastructure) — see result recorded below. Correlation:
       0.999, with zero retries or rate-limit interference during the run.
+- [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
+      history. If correlation is weak or negative, say so and revise the heuristic weights
+      in `divergence_linter.py`, or scrap the specific signals that don't hold up.
 - [x] Replace the lexical-overlap (Jaccard) divergence proxy with embedding-based semantic
       similarity. Done 2026-06-17 (`validate_linter.py`, `sentence-transformers`'s
       `all-MiniLM-L6-v2`, runs offline, no API key). Empirically confirmed working
@@ -42,13 +44,6 @@ one to be working and measured before starting the next.
       satisfied yet; multitool.rune revealed real structural gaps — position-dependent
       divergence for repeated steps, non-uniform constraint effects — that need more
       data before a real fix, not another guess, can be justified.)
-- [ ] Record actual correlation coefficients, not just the synthetic test in this repo's
-      history. If correlation is weak or negative, say so and revise the heuristic weights
-      in `divergence_linter.py`, or scrap the specific signals that don't hold up.
-- [ ] Replace the lexical-overlap (Jaccard) divergence proxy with embedding-based semantic
-      similarity, since two backends can say the same thing in different words and get
-      penalized as "divergent" under pure word-overlap scoring.
-- [ ] Test across at least 3 distinct genome shapes (current: research, coder)
 
 ### Recorded result: 2026-06-16, `groq` vs `groq_large`, `research.rune`, 12 tasks
 
@@ -102,15 +97,90 @@ no shared rate limit, no observed throttling. Unlike every other result recorded
 nothing in this run's execution casts doubt on whether the measured divergence reflects
 genuine model behavior rather than infrastructure noise.
 
-Combined with the two earlier results (0.719, same-provider stand-in; 0.99,
-cross-provider but rate-limited), this is now three independent positive signals across
-three different pairing types. That's the strongest evidence so far that the linter's
-structural heuristic has real predictive signal — though "strong evidence" is still not
-the same as "proven correct in general." Remaining honest limitations: all three runs
-used the same single genome (`research.rune`) and the same 12-task set; Stage 1's other
-unchecked items (testing `coder.rune`, testing with more tasks, replacing the Jaccard
-lexical-overlap proxy with embedding-based similarity) still apply before treating this
-as fully validated.
+### Recorded result: 2026-06-17, `groq_qwen` vs `mistral`, `coder.rune`, 12 tasks (v1, before fix)
+
+Correlation between predicted risk and measured divergence: **0.152** (weak/no
+correlation, per `validate_linter.py`'s own interpretation — below the ≤-0.5/≥0.5
+thresholds entirely, landing in the "no real signal" middle band).
+
+**This is an important negative result, not a footnote.** All three prior results above
+were measured on `research.rune` alone (search → analyze → summarize, one tool step).
+`coder.rune` has a structurally different genome (analyze → code → test → summarize,
+*zero* tool steps, different constraint). On this genome, the linter predicted `analyze`
+as highest risk and `summarize` as lowest — the same ranking pattern it produced for
+`research.rune` — but measured divergence came back nearly flat (0.637–0.773) and in a
+different order: `test` (0.773) diverged more than the predicted-highest-risk `analyze`
+(0.746), the reverse of the prediction.
+
+### Fix attempt: revised `test` step specificity (2026-06-17)
+
+Hypothesis: `STEP_SPECIFICITY["test"] = 0.55` underrated how open-ended "verify your
+code works" actually is — no fixed format models converge on (unit tests vs prose
+reasoning vs mental trace-through), arguably closer to `analyze`'s ambiguity than to
+`code`'s. Revised to 0.75. This was a substantive re-read of the instruction, not a fit
+to the v1 dataset — see `divergence_linter.py`'s `STEP_SPECIFICITY` comment for the full
+reasoning.
+
+### Recorded result: 2026-06-17, `groq_qwen` vs `mistral`, `coder.rune`, 12 tasks (v2, after fix)
+
+Correlation: **0.362** (still weak/no correlation — improved from 0.152, but not a
+pass). The `test`/`analyze` ranking moved closer to matching, which is what the fix
+targeted, but a different, more fundamental issue surfaced: measured divergence across
+*all four* steps now sits in a narrow band (0.615–0.767), narrower spread than
+`research.rune` ever showed even in its weakest moments. `summarize` measured almost as
+high as `analyze`/`test` (0.738) despite being predicted as clearly lowest-risk (0.255).
+
+**Honest read: this looks like a measurement-methodology limitation, not a weights
+problem.** Code as an output format has many valid surface forms — variable names,
+comments, formatting, equivalent control-flow choices — that would register as lexically
+divergent under the current Jaccard word-overlap proxy even when two implementations are
+functionally identical. If that's what's happening, no amount of reweighting
+`STEP_SPECIFICITY` will fix it, because the problem is in how divergence itself is being
+measured for code-shaped output, not in which step is "supposed" to be risky. This adds
+real weight to the already-planned Stage 1 item below (replacing Jaccard with
+embedding-based semantic similarity) — that item was previously framed as a general
+improvement; this result suggests it may be a *requirement* specifically for genomes
+with code-producing steps, not just a nice-to-have.
+
+**Status: open, not resolved.** Don't tune `STEP_SPECIFICITY` further against this
+dataset — that risks fitting noise. The next real step is implementing semantic
+similarity for divergence measurement and re-running `coder.rune` before drawing any
+further conclusion about whether the heuristic itself is sound for this genome shape.
+
+### Recorded result: 2026-06-17, `groq_qwen` vs `mistral`, `coder.rune`, 12 tasks (v3, semantic similarity)
+
+Correlation: **0.497** — a real improvement from 0.362, but landing just under
+`validate_linter.py`'s own ≥0.5 threshold for a positive signal. Measured divergence
+dropped sharply across every step (0.099–0.216, down from 0.615–0.773 under Jaccard) and
+the relative spread between steps became much clearer: `code` is now unambiguously the
+lowest-divergence step, `test` the highest, `analyze` and `summarize` in between.
+
+**This partially confirms the measurement-bias hypothesis.** The sharp overall drop in
+divergence scores, especially for `code` — supports the theory that Jaccard was
+penalizing code for surface-level variation (variable names, formatting) that semantic
+similarity correctly recognizes as equivalent. Switching measurement methods produced a
+materially more informative result, not just a smaller number.
+
+**But it didn't fully resolve the mismatch.** Predicted order is `analyze` > `test` >
+`code` > `summarize`; measured order is `test` > `analyze` > `summarize` > `code`. `test`
+now correctly ranks near the top (validating the earlier `STEP_SPECIFICITY` fix's
+direction), but `summarize` measured as the second-highest-divergence step despite being
+predicted as clearly lowest-risk (0.255) — that specific mismatch has now persisted
+across all three `coder.rune` runs (v1, v2, v3) regardless of which fix was applied.
+That consistency across three different conditions is itself informative: it points at
+`summarize`'s `STEP_SPECIFICITY` value (0.3) or its constraint-coverage scoring as the
+next place to actually look, rather than at measurement noise.
+
+**Honest summary across all three coder.rune attempts:** the measurement method
+mattered (Jaccard → semantic similarity moved correlation from 0.362 to 0.497), and the
+`test` specificity fix mattered (0.152 → 0.362), but neither fix alone, nor both
+combined, has yet produced a result that clears the project's own bar for "the linter
+predicts this genome's divergence." `summarize` is the one consistent, unexplained
+discrepancy across every version of this experiment. Before claiming the linter
+generalizes to `coder.rune`, that needs a real explanation — not another reweighting
+guess, but the same kind of substantive reasoning that produced the `test` fix:
+what about "summarize your test results" specifically might make models diverge more
+than `STEP_SPECIFICITY=0.3` assumes?
 
 ### Root cause found and fixed: context-dependent `summarize` ambiguity (2026-06-17)
 
@@ -188,8 +258,7 @@ divergence in a step like `analyze` far more directly than `cite_sources` does, 
 forcing both models toward similarly-shaped output (lists, headers) regardless of how
 differently they actually reason — but the current math treats every constraint as
 equally generic. If true, the fix is structural: let `structured_output` specifically
-lower `specificity_risk`, not just contribute to coverage. Not yet implemented — see the
-next section for the result of testing this hypothesis.
+lower `specificity_risk`, not just contribute to coverage.
 
 ### Fix attempt: format-anchoring constraint suppression (2026-06-17)
 
@@ -275,74 +344,6 @@ should be stated explicitly as the goal, not stumbled into accidentally).
 
 Do not run a third combined experiment on this question before these two isolated ones
 exist — that would repeat the same mistake this section documents.
-
-## Methodology citation tiers
-
-Going forward, every structural/methodological decision in this roadmap is tagged with
-one of three tiers, so it's always clear how much external grounding a given choice has:
-
-- **Tier 1 — directly paper-supported**: the technique itself is a established method
-  with a specific, citable paper behind it.
-- **Tier 2 — inspired by a general principle, but specific values are self-derived**:
-  a broader field's reasoning motivated the approach, but the exact numbers/thresholds
-  were tuned against this project's own data, not derived from any paper.
-- **Tier 3 — pure engineering hypothesis, no external backing**: an idea formed from
-  observing this project's own results, with no claimed academic grounding.
-
-### Tier 1 — directly paper-supported
-
-- **Semantic-similarity divergence measurement** (`validate_linter.py`,
-  `sentence-transformers`, `all-MiniLM-L6-v2`): the underlying technique is
-  Sentence-BERT — Reimers, N. & Gurevych, I. (2019). "Sentence-BERT: Sentence
-  Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP-IJCNLP 2019*,
-  pp. 3982–3992. https://aclanthology.org/D19-1410/. The paper establishes that
-  siamese/triplet-trained BERT embeddings, compared via cosine similarity, produce
-  semantically meaningful similarity scores — directly supporting this project's use
-  of embedding cosine similarity (inverted: 1 - similarity) as a divergence proxy.
-  What is NOT paper-supported: the specific choice to use `1 - similarity` as a
-  "divergence score," and the decision to average pairwise similarities across more
-  than two backends — these are this project's own adaptations of the underlying
-  technique, not claims made in the original paper.
-
-### Tier 2 — general principle, self-derived specifics
-
-- **`SUMMARIZE_PRECEDED_BY_SPECIFICITY`** (`divergence_linter.py`): the general
-  principle — that a step's ambiguity depends on the semantic context preceding it,
-  not just the step's own instruction text — is consistent with longstanding work in
-  NLP/discourse processing on context-dependent interpretation (e.g. discourse
-  coherence and anaphora resolution literatures broadly establish that the same
-  utterance can have different interpretive constraints depending on prior context).
-  No specific paper was consulted before choosing the values `0.6` (after "test") and
-  `0.5` (after "code") — these were derived from observing three independent
-  `coder.rune` validation runs in this project, not from any external source. Citing
-  a specific discourse-processing paper here would overstate the connection; the
-  values themselves are this project's own.
-- **"Isolate one variable per genome experiment" methodological rule**: this is a
-  simplified instance of one-factor-at-a-time experimentation, a long-established
-  principle in Design of Experiments (DOE) / statistics. A representative general
-  reference: Montgomery, D. C. *Design and Analysis of Experiments* (various
-  editions) — standard textbook treatment of confounding and factor isolation. This
-  project does not implement full factorial design (no factor matrix, no formal
-  ANOVA); it borrows only the core warning that principle gives — don't change
-  multiple structural dimensions in one experiment if you need to attribute the
-  result to a specific cause — discovered the hard way via `multitool.rune`'s v1/v2
-  results before this connection to the wider DOE literature was made explicit.
-
-### Tier 3 — pure engineering hypothesis, no external backing
-
-- **`FORMAT_ANCHORING_CONSTRAINTS` (reverted)**: the hypothesis that a
-  format-anchoring constraint like `structured_output` suppresses a step's
-  divergence by a multiplicative factor was formed entirely from observing
-  `multitool.rune`'s v1 result (analyze measuring far lower than predicted). No
-  paper was sought or found to support the specific `0.7` factor, or the claim that
-  the effect should be uniform across step types — and the uniform-effect part of
-  the hypothesis was empirically wrong (see the v2 result). This entry stays Tier 3
-  even in its reverted state, as a record of what was tried.
-- **`STEP_SPECIFICITY` base values** (e.g. `analyze: 0.8`, `test: 0.75`): these are
-  this project's own calibration against observed divergence in `research.rune` and
-  `coder.rune`, not derived from or validated against any external study of LLM
-  output variance by step type.
-
 
 ## Stage 2 — Spec maturity
 
