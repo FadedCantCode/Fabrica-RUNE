@@ -68,28 +68,86 @@ SUMMARIZE_PRECEDED_BY_SPECIFICITY = {
     "code": 0.5,  # same reasoning, slightly less acute than following "test"
 }
 
-# Some constraints anchor a step's OUTPUT FORMAT directly (e.g. "use headers
-# and lists"), which was hypothesized to suppress cross-model divergence more
-# directly than a content-behavior constraint like cite_sources does.
-#
-# STATUS: tried and reverted, 2026-06-17. multitool.rune (the first genome
-# with structured_output) initially measured "analyze" as the LOWEST-
-# divergence step despite the heuristic predicting it highest (0.56) — a
-# ranking inversion. Adding a uniform 0.7 suppression factor for
-# structured_output did fix analyze's prediction (it dropped to match the
-# low measured value), but made the overall correlation WORSE (-0.086 ->
-# -0.604), because the same factor applied to every step, and "summarize"
-# went from correctly-low to a new, different inversion (predicted lowest,
-# measured second-highest). The hypothesis that structured_output suppresses
-# divergence appears genuinely correct for analyze specifically, but wrong
-# as a uniform per-constraint rule across all step types. Left here, inert
-# (empty dict), as a record of what was tried and why it didn't generalize
-# — re-enabling this needs a step-aware version, not a blanket multiplier,
-# and more data than one 12-task run to justify the specific values. See
-# docs/roadmap.md Stage 1 for the full v1/v2 result history.
-FORMAT_ANCHORING_CONSTRAINTS = {}
-
 TOOL_STEPS = {"search"}  # steps in runtime.py that reference a tool
+
+
+# Some constraints anchor a step's OUTPUT FORMAT directly (e.g. "use headers
+# and lists"), which interacts with how far a step's NATURAL unconstrained
+# output already is from that format.
+#
+# STATUS: this is the third attempt at modeling structured_output's effect,
+# and the first with real cross-genome support before being written, not
+# after a single result.
+#
+# Attempt 1 (2026-06-17, reverted): a single uniform 0.7 suppression factor
+# for structured_output across every step. Fixed "analyze" (which had been
+# predicted highest but measured lowest) but broke "summarize" (predicted
+# lowest, measured second-highest after the fix) — see docs/roadmap.md Stage 1
+# for the full v1/v2 history. Conclusion: the effect is real but not uniform
+# across step types.
+#
+# Attempt 2 (2026-06-18, hypothesis only): analyze-specific suppression.
+# Tested cleanly in coder_structured.rune (analyze/code/test/summarize, no
+# repeated steps) — analyze barely moved (0.95x), contradicting the
+# hypothesis. But code (3.4x) and test (1.9x) amplified sharply, an effect
+# nobody had predicted. Conclusion: the suppression-helps-analyze theory was
+# wrong; something else was happening.
+#
+# Attempt 3 (this one, 2026-06-18): natural-format-distance. The working
+# theory: structured_output's effect depends on how far a step's natural,
+# unconstrained output already is from prose/headers/lists — not on the
+# step's specific identity. Steps that already produce prose (analyze,
+# search, summarize) show little effect; steps that naturally produce
+# something else (code blocks for "code", procedural traces for "test") get
+# *amplified* divergence, plausibly because forcing two different models to
+# "listify" a naturally non-prose output produces more divergent structural
+# choices between them, not fewer.
+#
+# CONFIRMED on two independent genomes before this code was written:
+#   coder_structured.rune (analyze/code/test/summarize): analyze 0.95x,
+#     code 3.4x, test 1.9x (measured-with / measured-without structured_output)
+#   format_distance_test.rune (search/analyze/code, different genome,
+#     different step combination, sharing only "code"): search 1.0x,
+#     analyze 0.91x, code 3.6x
+# Both genomes show the same qualitative ordering: prose-natural steps near
+# 1.0x (no real effect), code amplified ~3.4-3.6x, test amplified ~1.9x
+# (only tested once so far, in coder_structured.rune).
+#
+# The factors below are NOT a fit to those exact ratios — using 3.4 and 3.6
+# directly would be exactly the curve-fitting mistake flagged repeatedly in
+# docs/roadmap.md. Instead they're deliberately rounded, conservative values
+# that preserve the confirmed ORDERING (prose-natural ~1.0, test ~1.5-2x,
+# code ~2-3x) without claiming false precision from two 12-task runs.
+# "search" and "summarize" are prose-natural by the same reasoning as
+# "analyze" but search's case is additionally supported by direct measurement
+# in format_distance_test.rune; summarize's case relies on the same
+# reasoning, not yet a direct isolated measurement of its own.
+FORMAT_ANCHORING_CONSTRAINTS = {
+    "structured_output": {
+        "search":    1.0,   # prose-natural; confirmed flat in format_distance_test.rune
+        "analyze":   1.0,   # prose-natural; confirmed flat in two genomes
+        "summarize": 1.0,   # prose-natural by the same reasoning; not yet directly isolated
+        "code":      2.0,   # non-prose-natural; confirmed amplified ~3.4-3.6x in two
+                             # genomes. Using 2.0, not the measured ~3.5: the measured
+                             # value is a single-comparison ratio from 12-task runs and
+                             # shouldn't be taken as precise, and a higher factor here
+                             # would clip against the 1.0 specificity_risk ceiling (see
+                             # the min() cap in _resolve_specificity below), silently
+                             # erasing the intended code > test ordering. 2.0 preserves
+                             # direction and relative ordering without overclaiming
+                             # exactness or hitting the cap.
+        "test":      1.2,   # non-prose-natural (procedural trace); confirmed amplified
+                             # ~1.9x in coder_structured.rune only (not yet replicated in
+                             # a second genome the way code's effect was). test's base
+                             # STEP_SPECIFICITY (0.75) is already much higher than code's
+                             # (0.5), so a smaller factor here still produces a higher
+                             # absolute specificity_risk than an unamplified step would;
+                             # 1.2 was chosen specifically to keep test's result below
+                             # code's after multiplication (0.75*1.2=0.9 vs 0.5*2.0=1.0),
+                             # matching the data's relative ordering, rather than fitting
+                             # the measured 1.9x ratio directly.
+    }
+}
 
 
 def _resolve_specificity(step: str, preceding_step: str | None, constraints: list[str]) -> float:
@@ -97,9 +155,12 @@ def _resolve_specificity(step: str, preceding_step: str | None, constraints: lis
     Look up specificity risk for a step, accounting for:
     1. Context where the step's actual ambiguity depends on what preceded it
        (currently only "summarize" — see SUMMARIZE_PRECEDED_BY_SPECIFICITY).
-    2. Constraints that anchor output format, which suppress the step's
-       effective specificity_risk regardless of step identity (see
-       FORMAT_ANCHORING_CONSTRAINTS above — currently empty/inert).
+    2. Constraints that anchor output format, whose effect depends on how far
+       the step's NATURAL output is from that format (see
+       FORMAT_ANCHORING_CONSTRAINTS above). Unlike a flat suppression factor,
+       this can push specificity_risk up (for steps whose natural output is
+       far from prose, like "code") or leave it unchanged (for steps whose
+       natural output already is prose, like "analyze").
     """
     if step == "summarize" and preceding_step in SUMMARIZE_PRECEDED_BY_SPECIFICITY:
         base = SUMMARIZE_PRECEDED_BY_SPECIFICITY[preceding_step]
@@ -107,10 +168,13 @@ def _resolve_specificity(step: str, preceding_step: str | None, constraints: lis
         base = STEP_SPECIFICITY.get(step, 0.7)  # unknown step = treat as risky
 
     for constraint in constraints:
-        if constraint in FORMAT_ANCHORING_CONSTRAINTS:
-            base *= FORMAT_ANCHORING_CONSTRAINTS[constraint]
+        step_factors = FORMAT_ANCHORING_CONSTRAINTS.get(constraint, {})
+        # Default to 1.0 (no effect) for any step not explicitly covered,
+        # rather than silently skipping it — an unlisted step should not be
+        # treated as suppressed by accident.
+        base *= step_factors.get(step, 1.0)
 
-    return round(base, 3)
+    return round(min(base, 1.0), 3)
 
 
 def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
@@ -118,7 +182,8 @@ def score_step(step: str, rune, preceding_step: str | None = None) -> dict:
     Return a structural divergence-risk score in [0, 1] for one step.
 
     preceding_step: the genome step immediately before this one, or None if
-    this is the first step. Optional and defaults to None so existing
+    this is the first step. Currently only affects "summarize" scoring —
+    see _resolve_specificity. Optional and defaults to None so existing
     callers (and any external code importing this function) keep working
     unchanged; lint() below always passes it correctly for steps within a
     real genome.
