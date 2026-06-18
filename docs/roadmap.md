@@ -471,6 +471,60 @@ floor" is suggestive, not rigorously established — a fully neutral baseline (t
 `direct_response` step type discussed above) would be needed to confirm this cleanly per
 step type, rather than using one floor value for every comparison.
 
+### Recorded result: 2026-06-18, `groq_qwen` vs `mistral`, `coder_structured.rune`, 12 tasks (constraint effect, isolated)
+
+`coder_structured.rune` is identical to `coder.rune` (analyze → code → test →
+summarize, no repeated steps, no tool steps) but with `structured_output` added
+alongside `cite_sources`, to isolate the constraint effect from the position effect with
+zero position confound at all. Correlation: **-0.419**, weak/negative, similar magnitude
+to the `multitool.rune` family's results.
+
+**This contradicts the working hypothesis from `multitool.rune`, not confirms it.** The
+hypothesis going in was that `structured_output` suppresses `analyze`'s divergence
+specifically. The direct paired comparison against `coder.rune`'s existing measured
+values (same tasks, same backends, only `structured_output` added) shows a different,
+unexpected pattern:
+
+| Step | coder.rune | coder_structured.rune | Δ | Direction |
+|---|---|---|---|---|
+| analyze | 0.185 | 0.176 | -0.009 | flat |
+| code | 0.113 | 0.384 | +0.271 | sharply up |
+| test | 0.186 | 0.355 | +0.169 | sharply up |
+| summarize | 0.154 | 0.188 | +0.034 | modestly up |
+
+**`analyze` barely moved at all** — essentially flat, not the clear suppression seen
+in `multitool.rune`. This is a real strike against treating that earlier finding as a
+general property of `structured_output`; it may have been specific to the `multitool`
+genome shape (where `analyze` sits between two `search` steps) rather than a property of
+the constraint itself.
+
+**`code` and `test` moved sharply in the opposite direction — amplified, not
+suppressed.** `code` was sitting almost exactly at the `null_baseline.rune` noise floor
+in plain `coder.rune` (0.97×); under `structured_output` it jumped to roughly 3.3× floor.
+`test` nearly doubled. Neither step was part of the original hypothesis at all.
+
+**Working reinterpretation, not yet tested further:** a plausible mechanism — stated as
+a hypothesis, not a conclusion — is that `structured_output`'s effect may depend on
+whether a step's *natural* output format is already prose-like or not. `analyze` and
+`summarize` (whose unconstrained output is already prose) show flat-to-modest movement
+under the constraint. `code` and `test` (whose unconstrained output naturally wants to
+be a code block or a procedural trace, not headers-and-lists) show large movement —
+possibly because forcing two different models to "listify" something that doesn't
+naturally fit that shape produces *more* divergent structural choices between them, not
+fewer. This would mean the earlier framing ("helps interpretive steps like analyze")
+was the wrong generalization; a better one might be "the effect depends on how far the
+constraint pushes a step away from its natural unconstrained format," which is a
+different, more specific claim than what was tested for here.
+
+**Status: open, not resolved, and the original hypothesis is now weakened, not
+supported.** This result does NOT justify reinstating `FORMAT_ANCHORING_CONSTRAINTS`
+with `analyze`-specific suppression — that hypothesis just failed its first clean,
+position-confound-free test. Before any further fix attempt, this new
+natural-format-distance hypothesis needs its own additional isolated test (e.g. a genome
+mixing prose-natural and non-prose-natural steps in a different combination) — not
+another single-run fix applied directly to this dataset, which would repeat the exact
+curve-fitting mistake already documented twice in this file.
+
 ## Stage 2 — Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
