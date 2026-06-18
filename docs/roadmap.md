@@ -421,6 +421,56 @@ a correlation. Read the `measured_divergence` field directly when using this bas
 ignore the `null` correlation and the "too few steps" interpretation message, both are
 working as intended for a single-step genome.
 
+### Recorded result: 2026-06-18, `groq_qwen` vs `mistral`, `null_baseline.rune`, 12 tasks
+
+Measured divergence on the single `summarize` step, no tools, no constraints: **0.116**.
+This is the floor — roughly how much two different models will disagree on *any*
+unconstrained question, independent of any genome structure at all.
+
+**Re-reading every prior result as a multiple of this floor changes the picture
+materially.** Raw divergence scores in isolation don't say much; expressed as
+floor-multiples, they reveal which results represent a real, structure-induced effect
+and which are statistically close to noise:
+
+| Genome | Step | Measured | × floor |
+|---|---|---|---|
+| research.rune | analyze | 0.853 | 7.35× |
+| research.rune | search | 0.823 | 7.09× |
+| research.rune | summarize | 0.802 | 6.91× |
+| coder.rune | test | 0.186 | 1.60× |
+| coder.rune | analyze | 0.185 | 1.59× |
+| coder.rune | summarize | 0.154 | 1.33× |
+| coder.rune | code | 0.113 | 0.97× |
+| multitool_v2.rune | search (step 3) | 0.26 | 2.24× |
+| multitool_v2.rune | summarize | 0.233 | 2.01× |
+| multitool_v2.rune | analyze | 0.223 | 1.92× |
+| multitool_v2.rune | search (step 1) | 0.156 | 1.34× |
+
+**Honest read: `research.rune`'s validation is much stronger evidence than `coder.rune`'s
+or `multitool_v2.rune`'s, even though all three produced usable correlations.**
+`research.rune`'s every step sits 7× above the noise floor — a large, unambiguous,
+structure-induced effect. `coder.rune`'s `code` step (0.97×) is statistically
+indistinguishable from two models answering literally any unconstrained question; its
+other three steps sit only 1.3–1.6× above floor, real but modest. `multitool_v2.rune`'s
+steps sit in a similar 1.3–2.2× range. `coder.rune`'s 0.967 correlation and
+`multitool_v2.rune`'s position-effect finding are both still real — the *rankings* among
+steps clearly aren't random — but the *absolute magnitude* of divergence being predicted
+in these two genomes is much smaller and closer to baseline noise than `research.rune`'s
+was. This doesn't invalidate either result, but it does mean "the linter works" should
+be read as having much stronger support on `research.rune`-shaped genomes than on
+`coder.rune`- or `multitool`-shaped ones, where the effect being measured is real but
+considerably weaker relative to baseline noise.
+
+**One important limitation of this baseline itself:** the floor was measured using
+`summarize`, which per the caveat above carries its own task semantics — it is not
+necessarily *the* floor for every step type. `code`, for instance, might have a
+different natural floor than `summarize` does (code may have a narrower or wider band of
+"reasonable answers" than prose summary does), so comparing `coder.rune`'s `code` step
+(0.113) directly against a `summarize`-derived floor (0.116) and calling it "at the
+floor" is suggestive, not rigorously established — a fully neutral baseline (the
+`direct_response` step type discussed above) would be needed to confirm this cleanly per
+step type, rather than using one floor value for every comparison.
+
 ## Stage 2 — Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
