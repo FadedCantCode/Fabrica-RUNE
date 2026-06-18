@@ -747,6 +747,12 @@ than disappearing entirely. Whether to keep chasing `analyze`'s remaining gap to
 treat the `multitool` family as a documented, partially-understood open item and move
 on, is a real decision, not a foregone conclusion either way.
 
+### DOT format mismatch fix: extract_features() rewritten against the real Rune schema (2026-06-18)
+dot.py's extract_features() assumed genome was a list of per-step dicts, each carrying its own constraints list. Checked against rune_loader.py, RFC-0001, and the existing .rune files (research.rune, coder.rune, multitool.rune, multitool_v2.rune): this assumption does not hold, in two separate ways. genome is a flat list of step name strings, repeats included directly in the list, never a list of dicts. constraints is a single flat list at the rune level, applying to the whole genome; there is no per-step constraint concept anywhere in the schema, runtime, or linter.
+extract_features() rewritten to take a Rune dataclass instance (the object returned by rune_loader.load_rune()) directly, dropping the per-step constraint logic entirely since it described something that does not exist in the format. The real schema needed less code than the wrong assumption did. The main demo block rewritten the same way: instead of four hand built dicts standing in for genome shapes, it now loads research.rune, coder.rune, multitool.rune, and multitool_v2.rune directly.
+Smoke tested against the real rune_loader.py and all four example files. With research.rune and coder.rune as the validated baseline, DOT assigns multitool.rune the lowest confidence (0.334) and multitool_v2.rune higher (0.618, closer to the single constraint baseline shape), consistent with multitool.rune being the genome that exposed real heuristic gaps in Stage 1. This is a sanity check that the nearest neighbor logic behaves as intended on known shapes, not new evidence about anything; two validated examples still is not enough to mean much on its own.
+Limitation (b) is unchanged: with only 2 validated examples, _feature_scale()'s normalization range is still defined entirely by those two points and remains unstable. Not in scope until validated examples accumulate past the Stage 2 target. DOT remains unintegrated into divergence_linter.py, per the existing plan; this fix only closes limitation (a).
+
 ## Stage 2: Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
