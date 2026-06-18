@@ -615,6 +615,57 @@ run of `multitool.rune` itself, which has `structured_output` plus a position ef
 this fix doesn't address, to see whether the two known gaps interact or remain cleanly
 separable).
 
+### Recorded result: 2026-06-18, `groq_qwen` vs `mistral`, `test_isolation.rune`, 12 tasks (test's amplification, re-examined)
+
+`test_isolation.rune` (search → test → analyze, single constraint `structured_output`,
+no `code` anywhere in the genome) was built specifically to check whether `test`'s
+~1.9x amplification in `coder_structured.rune` was a property of `test` itself, or an
+artifact of always sitting adjacent to `code` (analyze → code → test → summarize) in
+that genome. Correlation: **0.994**, a strong positive result, but the headline number
+masks a more important, more specific finding underneath it.
+
+**Floor-relative reading:**
+
+| Step | Measured | × floor |
+|---|---|---|
+| test | 0.229 | 1.97× |
+| analyze | 0.219 | 1.89× |
+| search | 0.168 | 1.45× |
+
+`test` does sit above both `search` and `analyze`, so the direction of the original
+claim (test diverges more than prose-natural steps under `structured_output`) is not
+wrong. But `test` is only 5% above `analyze` here (1.05× ratio), nothing like the
+amplification seen in `coder_structured.rune`. The strong correlation is being driven
+mostly by `search` measuring clearly lower, a real and useful signal, but it isn't
+evidence for `test`'s specific amplification factor; `test` and `analyze` are
+essentially tied.
+
+**This confirms the suspicion flagged when this experiment was designed.** `test`'s
+original ~1.9x reading in `coder_structured.rune` likely was partly an artifact of
+adjacency to `code`, not a clean, independent property of `test` itself. Isolated from
+`code`, `test`'s amplification all but evaporates. This is a meaningfully different,
+more honest evidentiary position than `code`'s: `code`'s ~3.4-3.6x amplification held
+up almost identically across two structurally unrelated genomes; `test`'s effect was
+strong once and weak to nonexistent the second time, in the one comparison designed to
+isolate it cleanly.
+
+**Action taken:** `FORMAT_ANCHORING_CONSTRAINTS["structured_output"]["test"]` revised
+from 1.2 down to 1.05, reflecting this result rather than the original
+`coder_structured.rune` reading alone. This is a real downward revision based on a
+second, contradicting data point, not a refusal to update; the alternative (leaving the
+factor at 1.2 because the first reading was a nicer story) would repeat exactly the
+overconfidence this project has tried to avoid all day. Confirmed `research.rune`,
+`coder.rune`, and every other genome without a `test` step are unaffected by this
+change.
+
+**Status: `code`'s amplification claim remains well-supported (two independent
+confirmations, consistent magnitude); `test`'s is now weak (one strong reading, one
+near-null reading, net effect revised down close to neutral).** If a future genome
+isolates `test` cleanly a third time and shows amplification again, the factor can be
+revised back up with real justification; until then, treating `test` as close to
+prose-natural (small residual factor, not a confirmed strong effect) is the more honest
+position.
+
 ## Stage 2: Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
