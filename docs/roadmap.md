@@ -525,6 +525,52 @@ mixing prose-natural and non-prose-natural steps in a different combination), no
 another single-run fix applied directly to this dataset, which would repeat the exact
 curve-fitting mistake already documented twice in this file.
 
+### Recorded result: 2026-06-18, `groq_qwen` vs `mistral`, `format_distance_test.rune`, 12 tasks (natural-format-distance hypothesis, confirmed)
+
+`format_distance_test.rune` (search → analyze → code, single constraint
+`structured_output`, no `cite_sources`, no repeated steps) was built specifically to
+test the natural-format-distance hypothesis from `coder_structured.rune` with a
+genuinely different step combination, since `coder_structured.rune` alone couldn't rule
+out the possibility that `analyze`'s flatness was specific to that exact genome shape
+rather than a property of prose-natural steps in general. Correlation: **-0.452**,
+weak/negative, consistent with every other `structured_output` result today.
+
+**Floor-relative reading confirms the pattern cleanly:**
+
+| Step | Measured | × floor |
+|---|---|---|
+| search | 0.156 | 1.34× |
+| analyze | 0.192 | 1.66× |
+| code | 0.409 | 3.53× |
+
+`search` and `analyze` both sit close to baseline noise (1.34× and 1.66×), nearly
+identical in character to how `analyze` behaved in `coder_structured.rune` and how
+`search` behaved in `multitool_v2.rune` without `structured_output` at all. `code`
+again amplified sharply, to 3.53× floor, closely matching `coder_structured.rune`'s
+`code` reading (3.3× floor) in a completely different genome.
+
+**This is a real, independent confirmation, not a repeat of the same comparison.**
+`search` is structurally unrelated to `analyze` or `summarize`: it's a tool step, has
+never been tested under `structured_output` before this run, and still behaved like a
+prose-natural step (low, flat) rather than amplifying. That rules out the alternative
+explanation that `coder_structured.rune`'s flat `analyze` reading was specific to that
+genome's exact shape rather than a property of prose-natural steps in general. Two
+genuinely different genomes, sharing only one step (`code`) and one constraint, now
+show the same pattern: divergence under `structured_output` stays low for steps whose
+natural unconstrained output is already prose, and amplifies sharply for steps whose
+natural output isn't (code blocks, procedural traces).
+
+**Status: the natural-format-distance hypothesis now has real, repeated, cross-genome
+support.** This is a meaningfully stronger evidentiary position than the original
+`analyze`-specific suppression hypothesis ever reached; that one had a single
+genome's support before failing its first isolated test. This one has two independent
+genomes, sharing minimal structure, pointing the same direction. It is still only two
+genomes and 12 tasks each; this does not yet justify picking specific numeric
+suppression/amplification factors, since that remains the same curve-fitting risk
+flagged repeatedly in this document. But it does justify treating "format-distance from
+prose" as the leading explanation for `structured_output`'s effect, ahead of any
+step-identity-specific theory, when designing the next fix attempt.
+
 ## Stage 2: Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
