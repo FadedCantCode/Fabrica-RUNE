@@ -395,6 +395,32 @@ clearest open limitations and moving forward on a different priority (sample siz
 cross-pairing validation) while documenting these as known, unresolved gaps rather than
 chasing a third fix attempt on limited data.
 
+### NULL RUNE baseline added (2026-06-18)
+
+Added `examples/null_baseline.rune`: a single `summarize` step, no tools, no
+constraints, intended to measure a "divergence floor" — how much disagreement exists
+between models even when the genome imposes essentially no structure.
+
+**Honest tradeoff, documented in the file itself, not just here:** this reuses the
+existing `summarize` step rather than introducing a genuinely neutral step type.
+`summarize` carries real task semantics — compression, abstraction, rephrasing — that
+are themselves a kind of structure, not the absence of one. A true causal zero-point
+would need a new step type (e.g. `direct_response`) with no inherent transformation
+bias, requiring changes to `KNOWN_STEPS` in `rune_loader.py` and `STEP_INSTRUCTIONS` in
+`runtime.py`. That's deferred for now as real, but currently unjustified, engineering
+cost. Treat any divergence measured against this baseline as a rough floor estimate
+contaminated by `summarize`'s own task semantics, not a precise zero-point — useful for
+relative comparison ("is genome X's divergence meaningfully above this floor?"), not
+for strict causal attribution claims.
+
+**Technical note for running this:** `validate_linter.py`'s `correlation` field will
+correctly come back `null` for this genome, since correlation requires variance across
+at least two data points and this genome has only one step. That's expected, not a
+bug — the quantity of interest here is the raw `measured_divergence` value itself, not
+a correlation. Read the `measured_divergence` field directly when using this baseline;
+ignore the `null` correlation and the "too few steps" interpretation message, both are
+working as intended for a single-step genome.
+
 ## Stage 2 — Spec maturity
 
 - [ ] Versioned schema (semver on the `.rune` format itself, not just the repo)
